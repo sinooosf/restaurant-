@@ -98,6 +98,11 @@ export default function AdminOrders() {
   const soundOnRef = useRef(true)
   const seenIds = useRef(null)
 
+  // Goes up every time staff change an order. A refresh that was already on
+  // its way when that happened carries old data, so it gets thrown away
+  // instead of flipping the order back to its previous status.
+  const mutationRef = useRef(0)
+
   function toggleSound() {
     const next = !soundOn
     setSoundOn(next)
@@ -107,29 +112,36 @@ export default function AdminOrders() {
 
   useEffect(() => {
     let cancelled = false
+    let timer
 
     // Browsers block sound until the user clicks the page once.
     const unlock = () => getCtx()
     window.addEventListener('click', unlock, { once: true })
 
     async function refresh() {
+      const startedAt = mutationRef.current
+
       try {
         setRefreshing(true)
 
         const data = await adminFetchOrders(password)
 
-        if (!cancelled) {
-          // Ding when an order id shows up that we haven't seen before.
-          // The first load only records the ids, so it stays silent.
-          if (seenIds.current) {
-            const hasNew = data.some((o) => !seenIds.current.has(o.id))
-            if (hasNew && soundOnRef.current) playDing()
-          }
-          seenIds.current = new Set(data.map((o) => o.id))
+        if (cancelled) return
 
-          setOrders(data)
-          setError('')
+        // Staff changed an order while this request was loading, so this
+        // answer is already out of date. Skip it; the next refresh is correct.
+        if (mutationRef.current !== startedAt) return
+
+        // Ding when an order id shows up that we haven't seen before.
+        // The first load only records the ids, so it stays silent.
+        if (seenIds.current) {
+          const hasNew = data.some((o) => !seenIds.current.has(o.id))
+          if (hasNew && soundOnRef.current) playDing()
         }
+        seenIds.current = new Set(data.map((o) => o.id))
+
+        setOrders(data)
+        setError('')
       } catch (err) {
         if (!cancelled) {
           setError(err.message)
@@ -141,55 +153,54 @@ export default function AdminOrders() {
       }
     }
 
-    refresh()
+    // Wait for one refresh to finish BEFORE scheduling the next one, so slow
+    // answers can never pile up or arrive out of order.
+    async function tick() {
+      await refresh()
+      if (!cancelled) timer = setTimeout(tick, REFRESH_MS)
+    }
 
-    const interval = setInterval(refresh, REFRESH_MS)
+    tick()
 
     return () => {
       cancelled = true
-      clearInterval(interval)
+      clearTimeout(timer)
       window.removeEventListener('click', unlock)
     }
   }, [password])
 
-  async function advance(order) {
+  async function changeStatus(order, status) {
+    mutationRef.current += 1 // discard refreshes that started before this click
+
+    try {
+      const updated = await adminUpdateOrderStatus(
+        password,
+        order.id,
+        status
+      )
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? updated : o
+        )
+      )
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      mutationRef.current += 1 // and those that started while we were saving
+    }
+  }
+
+  function advance(order) {
     const next = NEXT_STATUS[order.status]
 
     if (!next) return
 
-    try {
-      const updated = await adminUpdateOrderStatus(
-        password,
-        order.id,
-        next
-      )
-
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? updated : o
-        )
-      )
-    } catch (err) {
-      setError(err.message)
-    }
+    return changeStatus(order, next)
   }
 
-  async function cancelOrder(order) {
-    try {
-      const updated = await adminUpdateOrderStatus(
-        password,
-        order.id,
-        'cancelled'
-      )
-
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? updated : o
-        )
-      )
-    } catch (err) {
-      setError(err.message)
-    }
+  function cancelOrder(order) {
+    return changeStatus(order, 'cancelled')
   }
 
   const stats = useMemo(() => {
