@@ -96,7 +96,8 @@ export default function AdminOrders() {
 
   const [soundOn, setSoundOn] = useState(true)
   const soundOnRef = useRef(true)
-  const seenIds = useRef(null)
+  const totalsRef = useRef(null)
+  const [updatedIds, setUpdatedIds] = useState(() => new Set())
   const lastJson = useRef('')
   const [counts, setCounts] = useState(null)
 
@@ -147,13 +148,34 @@ export default function AdminOrders() {
         const list = Array.isArray(data) ? data : data.orders
         const serverCounts = Array.isArray(data) ? null : data.counts
 
-        // Ding when an order id shows up that we haven't seen before.
-        // The first load only records the ids, so it stays silent.
-        if (seenIds.current) {
-          const hasNew = list.some((o) => !seenIds.current.has(o.id))
-          if (hasNew && soundOnRef.current) playDing()
+        // Ding when a NEW order shows up, or when a customer ADDS dishes to
+        // an order that is already here (its total goes up). The first load
+        // only records what exists, so it stays silent.
+        const previousTotals = totalsRef.current
+        if (previousTotals) {
+          let shouldDing = false
+          const addedTo = []
+
+          for (const o of list) {
+            if (!previousTotals.has(o.id)) {
+              shouldDing = true
+            } else if (o.total > previousTotals.get(o.id)) {
+              shouldDing = true
+              addedTo.push(o.id)
+            }
+          }
+
+          if (addedTo.length > 0) {
+            setUpdatedIds((prev) => {
+              const next = new Set(prev)
+              addedTo.forEach((id) => next.add(id))
+              return next
+            })
+          }
+
+          if (shouldDing && soundOnRef.current) playDing()
         }
-        seenIds.current = new Set(list.map((o) => o.id))
+        totalsRef.current = new Map(list.map((o) => [o.id, o.total]))
 
         setOrders(list)
         setCounts(serverCounts)
@@ -200,6 +222,12 @@ export default function AdminOrders() {
           o.id === order.id ? updated : o
         )
       )
+
+      setUpdatedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(order.id)
+        return next
+      })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -395,6 +423,7 @@ export default function AdminOrders() {
               <OrderCard
                 key={order.id}
                 order={order}
+                updated={updatedIds.has(order.id)}
                 onAdvance={advance}
                 onCancel={cancelOrder}
               />
@@ -453,6 +482,7 @@ export default function AdminOrders() {
 
 function OrderCard({
   order,
+  updated = false,
   onAdvance,
   onCancel,
 }) {
@@ -504,7 +534,15 @@ function OrderCard({
 
           </div>
 
-          <StatusBadge status={order.status} />
+          <div className="flex flex-col items-end gap-2">
+            <StatusBadge status={order.status} />
+
+            {updated && (
+              <span className="animate-pulse rounded-full bg-maroon px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cream">
+                Items added
+              </span>
+            )}
+          </div>
 
         </div>
 
@@ -516,7 +554,7 @@ function OrderCard({
 
           {order.items.map((line, index) => (
             <div
-              key={index}
+              key={`${line.id}-${index}`}
               className="flex items-center justify-between gap-4"
             >
 

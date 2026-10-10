@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { ChevronDown, Minus, Plus, ShoppingCart } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 
-export default function CartBar({ onPlaceOrder, placing }) {
+export default function CartBar({
+  onPlaceOrder,
+  placing,
+  placeLabel = 'PLACE THE ORDER',
+}) {
   const {
     lines,
     totalCount,
@@ -29,64 +33,56 @@ export default function CartBar({ onPlaceOrder, placing }) {
     <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-line bg-panel px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
 
       {/* EXPANDED CART */}
-      <div
-        className={`grid transition-all duration-100 ease-in-out ${
-          expanded && totalCount > 0
-            ? 'grid-rows-[1fr] opacity-100'
-            : 'grid-rows-[0fr] opacity-0'
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div className="mb-3 max-h-52 space-y-2 overflow-y-auto pr-1">
-            {lines.map(({ item, quantity, lineTotal }) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-2.5 rounded-xl bg-panel-light p-2"
-              >
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="h-11 w-11 rounded-lg object-cover"
-                />
+      {expanded && totalCount > 0 && (
+        <div className="mb-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+          {lines.map(({ item, quantity, lineTotal }) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-2.5 rounded-xl bg-panel-light p-2"
+            >
+              <img
+                src={item.image}
+                alt={item.name}
+                className="h-11 w-11 rounded-lg object-cover"
+              />
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-cream">
-                    {item.name}
-                  </p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-cream">
+                  {item.name}
+                </p>
 
-                  <p className="text-xs text-cream/50">
-                    {lineTotal} DH
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                    aria-label={`Remove one ${item.name}`}
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream transition-transform active:scale-90"
-                  >
-                    <Minus size={12} />
-                  </button>
-
-                  <span className="w-4 text-center text-xs text-cream">
-                    {quantity}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => addItem(item.id)}
-                    aria-label={`Add another ${item.name}`}
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream transition-transform active:scale-90"
-                  >
-                    <Plus size={12} />
-                  </button>
-                </div>
+                <p className="text-xs text-cream/50">
+                  {lineTotal} DH
+                </p>
               </div>
-            ))}
-          </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  aria-label={`Remove one ${item.name}`}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
+                >
+                  <Minus size={12} />
+                </button>
+
+                <span className="w-4 text-center text-xs text-cream">
+                  {quantity}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => addItem(item.id)}
+                  aria-label={`Add another ${item.name}`}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
 
       {/* ORDER SUMMARY */}
       <button
@@ -119,7 +115,7 @@ export default function CartBar({ onPlaceOrder, placing }) {
 
         <ChevronDown
           size={18}
-          className={`text-cream/60 transition-transform duration-500 ease-in-out ${
+          className={`text-cream/60 transition-transform ${
             expanded ? 'rotate-180' : ''
           }`}
         />
@@ -136,7 +132,7 @@ export default function CartBar({ onPlaceOrder, placing }) {
             : 'cursor-not-allowed bg-ink text-cream/30'
         }`}
       >
-        {placing ? 'PLACING ORDER…' : 'PLACE THE ORDER'}
+        {placing ? 'PLEASE WAIT…' : placeLabel}
       </button>
     </div>
   )

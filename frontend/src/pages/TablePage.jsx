@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CATEGORIES,
   MENU_ITEMS,
@@ -13,6 +13,7 @@ import MenuSection from '../components/menu/MenuSection'
 import SearchResultsOverlay from '../components/menu/SearchResultsOverlay'
 import CartBar from '../components/cart/CartBar'
 import OrderTracking from '../components/order/OrderTracking'
+import OrderStatusChip from '../components/order/OrderStatusChip'
 import ChatbotPanel from '../components/chatbot/ChatbotPanel'
 import TableNotFound from './TableNotFound'
 
@@ -32,8 +33,27 @@ export default function TablePage() {
 
   const [placing, setPlacing] = useState(false)
 
+  // Shown inside the confirmation if the server refuses (e.g. the kitchen
+  // already finished the order so nothing can be added anymore).
+  const [orderError, setOrderError] = useState('')
+
   const cart = useCart()
   const order = useOrder()
+
+  // True once the customer already has an order running: new dishes are
+  // ADDED to that order instead of creating a second one.
+  const addingToOrder = Boolean(order.order)
+
+  // While the customer is looking at their order status, search is off
+  // (the chatbot stays available).
+  const searchLocked = Boolean(order.order) && order.trackingVisible
+
+  useEffect(() => {
+    if (searchLocked) {
+      setSearchOpen(false)
+      setSearchTerm('')
+    }
+  }, [searchLocked])
 
   // -------------------------------------------------------------------------
   // NORMAL MENU
@@ -95,6 +115,7 @@ export default function TablePage() {
   // -------------------------------------------------------------------------
 
   function handleOpenSearch() {
+    if (searchLocked) return
     setSearchOpen(true)
   }
 
@@ -114,12 +135,14 @@ export default function TablePage() {
       return
     }
 
+    setOrderError('')
     setConfirmOrderOpen(true)
   }
 
   // User clicked NO.
   // Simply close the confirmation and keep shopping.
   function handleContinueShopping() {
+    setOrderError('')
     setConfirmOrderOpen(false)
   }
 
@@ -131,14 +154,23 @@ export default function TablePage() {
     }
 
     setPlacing(true)
+    setOrderError('')
 
     try {
-      await order.placeOrder(tableId, cart.lines)
+      if (order.order) {
+        // Already ordering: add these dishes to the SAME order.
+        await order.addToOrder(cart.lines)
+      } else {
+        await order.placeOrder(tableId, cart.lines)
+      }
 
-      // placeOrder() automatically opens tracking.
+      // Both of them open the tracking screen automatically.
       setConfirmOrderOpen(false)
     } catch (error) {
-      console.error('Failed to place order:', error)
+      console.error('Failed to send order:', error)
+      setOrderError(
+        error?.message || 'Something went wrong. Please try again.'
+      )
     } finally {
       setPlacing(false)
     }
@@ -162,6 +194,7 @@ export default function TablePage() {
             ?.scrollIntoView()
         }
         onOpenChatbot={() => setChatbotOpen(true)}
+        searchDisabled={searchLocked}
       />
 
       {/* CATEGORIES */}
@@ -192,7 +225,13 @@ export default function TablePage() {
       <CartBar
         onPlaceOrder={handleRequestPlaceOrder}
         placing={placing}
+        placeLabel={
+          addingToOrder ? 'ADD TO YOUR ORDER' : 'PLACE THE ORDER'
+        }
       />
+
+      {/* "Order in progress" button, for when the tracking screen is hidden */}
+      <OrderStatusChip />
 
       {/* ORDER TRACKING */}
       <OrderTracking />
@@ -222,12 +261,15 @@ export default function TablePage() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <h2 className="font-display text-xl text-cream">
-              Is this your last order?
+              {addingToOrder
+                ? 'Add these to your order?'
+                : 'Is this your last order?'}
             </h2>
 
             <p className="mt-2 text-sm leading-relaxed text-cream/55">
-              If you are finished ordering, confirm and we will send
-              your order to the kitchen.
+              {addingToOrder
+                ? 'These dishes will be added to the order you already placed. The kitchen sees them right away.'
+                : 'If you are finished ordering, confirm and we will send your order to the kitchen.'}
             </p>
 
             {/* Current order summary */}
@@ -261,6 +303,12 @@ export default function TablePage() {
               </div>
             </div>
 
+            {orderError && (
+              <p className="mt-3 text-sm leading-relaxed text-red-300">
+                {orderError}
+              </p>
+            )}
+
             {/* Buttons */}
             <div className="mt-5 flex gap-3">
               <button
@@ -278,7 +326,11 @@ export default function TablePage() {
                 disabled={placing}
                 className="flex-1 rounded-full bg-maroon py-3 text-sm font-semibold text-cream transition hover:bg-maroon-bright disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {placing ? 'PLACING…' : 'YES, PLACE ORDER'}
+                {placing
+                  ? 'SENDING…'
+                  : addingToOrder
+                    ? 'YES, ADD THEM'
+                    : 'YES, PLACE ORDER'}
               </button>
             </div>
           </div>

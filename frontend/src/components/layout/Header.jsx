@@ -9,6 +9,7 @@ export default function Header({
   onOpenSearch,
   onOpenCart,
   onOpenChatbot,
+  searchDisabled = false,
 }) {
   const { totalCount } = useCart()
 
@@ -26,16 +27,21 @@ export default function Header({
         </div>
 
         {/* Search */}
-        <div className="flex flex-1 items-center gap-2 rounded-full border border-line bg-panel px-4 py-2.5">
+        <div
+          className={`flex flex-1 items-center gap-2 rounded-full border border-line bg-panel px-4 py-2.5 transition-opacity ${
+            searchDisabled ? 'opacity-50' : ''
+          }`}
+        >
   <Search size={16} className="shrink-0 text-cream/50" />
 
   <input
     type="text"
     value={searchTerm}
-    onFocus={onOpenSearch}
-    onClick={onOpenSearch}
+    onFocus={searchDisabled ? undefined : onOpenSearch}
+    onClick={searchDisabled ? undefined : onOpenSearch}
     onChange={(event) => onSearchChange(event.target.value)}
-    placeholder="Search food"
+    disabled={searchDisabled}
+    placeholder={searchDisabled ? 'Search is off while you wait' : 'Search food'}
     className="w-full bg-transparent text-sm text-cream placeholder:text-cream/40 focus:outline-none"
   />
         </div>

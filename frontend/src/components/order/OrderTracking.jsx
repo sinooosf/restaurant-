@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { useOrder } from '../../context/OrderContext'
 
 const STAGE_LABELS = {
@@ -14,11 +14,16 @@ export default function OrderTracking() {
     trackingVisible,
     hideTracking,
     cancel,
+    finishOrder,
   } = useOrder()
 
   if (!order || !trackingVisible) {
     return null
   }
+
+  const isCancelled = order.status === 'cancelled'
+  const isReady = order.status === 'ready'
+  const isFinished = isCancelled || isReady
 
   const stageIndex = stages.indexOf(order.status)
 
@@ -30,84 +35,111 @@ export default function OrderTracking() {
   // Only Preparing allows cancelling or adding more.
   const canModifyOrder = order.status === 'preparing'
 
+  const subtitle = isCancelled
+    ? 'Order cancelled'
+    : isReady
+      ? 'Order ready'
+      : 'Order in progress'
+
+  const title = isCancelled
+    ? 'Your order was cancelled'
+    : isReady
+      ? "It's ready!"
+      : order.status === 'almost'
+        ? 'Almost done!'
+        : 'Your food is on the way'
+
   return (
     <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center">
       <div className="w-full max-w-sm rounded-t-3xl bg-panel p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:rounded-3xl">
 
         {/* Header */}
         <p className="text-center text-xs uppercase tracking-wide text-cream/50">
-          Table {order.tableId} &middot; Order in progress
+          Table {order.tableId} &middot; {subtitle}
         </p>
 
         <h2 className="mt-1 text-center font-display text-xl text-cream">
-          {order.status === 'ready'
-            ? "It's ready!"
-            : order.status === 'almost'
-              ? 'Almost done!'
-              : 'Your food is on the way'}
+          {title}
         </h2>
 
         {/* ------------------------------------------------------------- */}
-        {/* PROGRESS */}
+        {/* PROGRESS (or the cancelled message) */}
         {/* ------------------------------------------------------------- */}
 
-        <div className="relative mt-8 px-2">
+        {isCancelled ? (
+          <div className="mt-6 flex flex-col items-center gap-3 px-2 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-red-500/60 bg-red-500/10 text-red-300">
+              <X size={22} />
+            </div>
 
-          <div className="absolute left-2 right-2 top-3 h-1 rounded-full bg-line" />
-
-          <div
-            className="absolute left-2 top-3 h-1 rounded-full bg-emerald-500 transition-all duration-700"
-            style={{
-              width: `calc(${fillPercent}% * (100% - 1rem) / 100%)`,
-            }}
-          />
-
-          <div className="relative flex justify-between">
-            {stages.map((stage, index) => {
-              const reached = index <= stageIndex
-
-              return (
-                <div
-                  key={stage}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <div
-                    className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition-colors ${
-                      reached
-                        ? 'border-emerald-500 bg-emerald-500 text-ink'
-                        : 'border-line bg-panel text-cream/40'
-                    }`}
-                  >
-                    {reached ? (
-                      <Check size={14} />
-                    ) : (
-                      index + 1
-                    )}
-                  </div>
-
-                  <span
-                    className={`text-[11px] ${
-                      reached
-                        ? 'text-cream'
-                        : 'text-cream/40'
-                    }`}
-                  >
-                    {STAGE_LABELS[stage]}
-                  </span>
-                </div>
-              )
-            })}
+            <p className="text-sm leading-relaxed text-cream/60">
+              The restaurant cancelled this order. You can close this
+              screen and place a new order whenever you like.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="relative mt-8 px-2">
+
+            <div className="absolute left-2 right-2 top-3 h-1 rounded-full bg-line" />
+
+            <div
+              className="absolute left-2 top-3 h-1 rounded-full bg-emerald-500 transition-all duration-700"
+              style={{
+                width: `calc(${fillPercent}% * (100% - 1rem) / 100%)`,
+              }}
+            />
+
+            <div className="relative flex justify-between">
+              {stages.map((stage, index) => {
+                const reached = index <= stageIndex
+
+                return (
+                  <div
+                    key={stage}
+                    className="flex flex-col items-center gap-2"
+                  >
+                    <div
+                      className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition-colors ${
+                        reached
+                          ? 'border-emerald-500 bg-emerald-500 text-ink'
+                          : 'border-line bg-panel text-cream/40'
+                      }`}
+                    >
+                      {reached ? (
+                        <Check size={14} />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+
+                    <span
+                      className={`text-[11px] ${
+                        reached
+                          ? 'text-cream'
+                          : 'text-cream/40'
+                      }`}
+                    >
+                      {STAGE_LABELS[stage]}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ------------------------------------------------------------- */}
         {/* ORDER ITEMS */}
         {/* ------------------------------------------------------------- */}
 
-        <div className="mt-7 space-y-1.5 rounded-2xl bg-panel-light p-3">
-          {order.items.map((line) => (
+        <div
+          className={`mt-7 max-h-44 space-y-1.5 overflow-y-auto rounded-2xl bg-panel-light p-3 ${
+            isCancelled ? 'opacity-60' : ''
+          }`}
+        >
+          {order.items.map((line, index) => (
             <div
-              key={line.id}
+              key={`${line.id}-${index}`}
               className="flex justify-between gap-3 text-sm text-cream/80"
             >
               <span className="truncate">
@@ -119,43 +151,61 @@ export default function OrderTracking() {
               </span>
             </div>
           ))}
+
+          <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm font-semibold text-cream">
+            <span>Total</span>
+            <span>{order.total} DH</span>
+          </div>
         </div>
 
         {/* ------------------------------------------------------------- */}
         {/* ACTIONS */}
         {/* ------------------------------------------------------------- */}
 
-        <div className="mt-5 flex gap-3">
+        {isFinished ? (
+          // Ready or Cancelled: the customer closes it themselves.
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={finishOrder}
+              className="w-full rounded-full bg-maroon py-3 text-sm font-semibold text-cream transition hover:bg-maroon-bright"
+            >
+              {isReady ? 'DONE' : 'CLOSE'}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-5 flex gap-3">
 
-          {/* CANCEL */}
-          <button
-            type="button"
-            onClick={cancel}
-            disabled={!canModifyOrder}
-            className={`flex-1 rounded-full border py-3 text-sm font-semibold transition ${
-              canModifyOrder
-                ? 'border-line text-cream/70 hover:bg-panel-light'
-                : 'cursor-not-allowed border-line/50 text-cream/20'
-            }`}
-          >
-            Cancel order
-          </button>
+            {/* CANCEL */}
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={!canModifyOrder}
+              className={`flex-1 rounded-full border py-3 text-sm font-semibold transition ${
+                canModifyOrder
+                  ? 'border-line text-cream/70 hover:bg-panel-light'
+                  : 'cursor-not-allowed border-line/50 text-cream/20'
+              }`}
+            >
+              Cancel order
+            </button>
 
-          {/* ADD MORE */}
-          <button
-            type="button"
-            onClick={hideTracking}
-            disabled={!canModifyOrder}
-            className={`flex-1 rounded-full py-3 text-sm font-semibold transition ${
-              canModifyOrder
-                ? 'bg-maroon text-cream hover:bg-maroon-bright'
-                : 'cursor-not-allowed bg-ink text-cream/20'
-            }`}
-          >
-            Add more
-          </button>
+            {/* ADD MORE */}
+            <button
+              type="button"
+              onClick={hideTracking}
+              disabled={!canModifyOrder}
+              className={`flex-1 rounded-full py-3 text-sm font-semibold transition ${
+                canModifyOrder
+                  ? 'bg-maroon text-cream hover:bg-maroon-bright'
+                  : 'cursor-not-allowed bg-ink text-cream/20'
+              }`}
+            >
+              Add more
+            </button>
 
-        </div>
+          </div>
+        )}
 
       </div>
     </div>
