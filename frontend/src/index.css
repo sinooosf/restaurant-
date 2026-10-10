@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Self-hosted fonts (via @fontsource) so the menu still renders correctly
+   with no internet connection once this is deployed inside a restaurant. */
+@import "@fontsource/anton/400.css";
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/500.css";
+@import "@fontsource/poppins/600.css";
+@import "@fontsource/poppins/700.css";
+@import "@fontsource/poppins/800.css";
+
+@theme {
+  --font-display: "Anton", sans-serif;
+  --font-sans: "Poppins", sans-serif;
+
+  --color-ink: #0b0b0c;
+  --color-panel: #1a1a1c;
+  --color-panel-light: #232325;
+  --color-maroon: #8a1014;
+  --color-maroon-bright: #b3181c;
+  --color-maroon-soft: #5c0d10;
+  --color-cream: #f6f4f0;
+  --color-line: #3a3a3d;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-ink);
+  color: var(--color-cream);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+/* Horizontally-scrolling rows (categories) with no visible scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
