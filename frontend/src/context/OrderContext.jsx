@@ -7,9 +7,12 @@ import {
   useCallback,
 } from 'react'
 
+import { matchPath, useLocation } from 'react-router-dom'
+
 import {
   submitOrder,
   getOrder,
+  getActiveOrderForTable,
   cancelOrder as cancelOrderRequest,
 } from '../services/api'
 
@@ -39,6 +42,11 @@ export function OrderProvider({ children }) {
   // CartProvider is above OrderProvider in App.jsx,
   // so OrderContext can safely access the cart.
   const cart = useCart()
+
+  // Which table is this phone looking at? (from the /table/:tableId address)
+  const location = useLocation()
+  const tableId = matchPath('/table/:tableId', location.pathname)?.params
+    .tableId
 
   // -------------------------------------------------------------------------
   // TIMER HELPERS
@@ -97,6 +105,40 @@ export function OrderProvider({ children }) {
       }
     }, POLL_INTERVAL_MS)
   }, [])
+
+  // -------------------------------------------------------------------------
+  // RESTORE — when someone opens (or re-scans) a table's page, ask the server
+  // if that table already has an order in progress. If so, bring it back with
+  // its tracking screen, no matter which phone or browser is used.
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!tableId) return
+
+    let cancelled = false
+
+    async function restore() {
+      try {
+        const active = await getActiveOrderForTable(tableId)
+
+        if (cancelled || !active) return
+
+        clearTimers()
+        setOrder(active)
+        setTrackingVisible(true)
+        startPolling(active.id)
+      } catch (error) {
+        // If this fails the customer simply sees a fresh page.
+        console.error('Failed to restore the table order:', error)
+      }
+    }
+
+    restore()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tableId, clearTimers, startPolling])
 
   // -------------------------------------------------------------------------
   // PLACE ORDER
