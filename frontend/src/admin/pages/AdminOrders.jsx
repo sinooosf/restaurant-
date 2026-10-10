@@ -47,7 +47,7 @@ const STATUS_COLOR = {
   },
 }
 
-const REFRESH_MS = 4000
+const REFRESH_MS = 3000
 
 /* -------------------------------------------------------------------------- */
 /* SOUND                                                                      */
@@ -97,6 +97,8 @@ export default function AdminOrders() {
   const [soundOn, setSoundOn] = useState(true)
   const soundOnRef = useRef(true)
   const seenIds = useRef(null)
+  const lastJson = useRef('')
+  const [counts, setCounts] = useState(null)
 
   // Goes up every time staff change an order. A refresh that was already on
   // its way when that happened carries old data, so it gets thrown away
@@ -132,15 +134,29 @@ export default function AdminOrders() {
         // answer is already out of date. Skip it; the next refresh is correct.
         if (mutationRef.current !== startedAt) return
 
+        // Nothing changed since the last refresh: don't redraw the page.
+        const json = JSON.stringify(data)
+        if (json === lastJson.current) {
+          setError('')
+          return
+        }
+        lastJson.current = json
+
+        // The server sends { orders, counts }. (An older server sends just
+        // the list, which still works.)
+        const list = Array.isArray(data) ? data : data.orders
+        const serverCounts = Array.isArray(data) ? null : data.counts
+
         // Ding when an order id shows up that we haven't seen before.
         // The first load only records the ids, so it stays silent.
         if (seenIds.current) {
-          const hasNew = data.some((o) => !seenIds.current.has(o.id))
+          const hasNew = list.some((o) => !seenIds.current.has(o.id))
           if (hasNew && soundOnRef.current) playDing()
         }
-        seenIds.current = new Set(data.map((o) => o.id))
+        seenIds.current = new Set(list.map((o) => o.id))
 
-        setOrders(data)
+        setOrders(list)
+        setCounts(serverCounts)
         setError('')
       } catch (err) {
         if (!cancelled) {
@@ -204,6 +220,15 @@ export default function AdminOrders() {
   }
 
   const stats = useMemo(() => {
+    if (counts) {
+      return {
+        active: counts.preparing + counts.almost,
+        preparing: counts.preparing,
+        almost: counts.almost,
+        ready: counts.ready,
+      }
+    }
+
     return {
       active: orders.filter(
         (order) =>
@@ -223,7 +248,15 @@ export default function AdminOrders() {
         (order) => order.status === 'ready'
       ).length,
     }
-  }, [orders])
+  }, [orders, counts])
+
+  const completedTotal = counts
+    ? counts.ready + counts.cancelled
+    : orders.filter(
+        (order) =>
+          order.status === 'ready' ||
+          order.status === 'cancelled'
+      ).length
 
   const activeOrders = orders.filter(
     (order) =>
@@ -284,7 +317,7 @@ export default function AdminOrders() {
               className={refreshing ? 'animate-spin' : ''}
             />
 
-            Every 4 sec
+            Every 3 sec
           </div>
 
         </div>
@@ -383,12 +416,14 @@ export default function AdminOrders() {
               </h2>
 
               <p className="mt-0.5 text-xs text-cream/25">
-                Ready and cancelled orders
+                {completedTotal > completedOrders.length
+                  ? `Latest ${completedOrders.length} of ${completedTotal} ready and cancelled orders`
+                  : 'Ready and cancelled orders'}
               </p>
             </div>
 
             <span className="rounded-full border border-line bg-panel px-3 py-1 text-xs text-cream/30">
-              {completedOrders.length}
+              {completedTotal}
             </span>
 
           </div>

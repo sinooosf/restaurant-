@@ -195,18 +195,39 @@ router.delete('/chatbot-faqs/:id', async (req, res, next) => {
 router.get('/orders', async (req, res, next) => {
   try {
     const scope = req.query.scope === 'all' ? 'all' : 'today'
-    const ordersResult = await pool.query(
-      scope === 'today'
-        ? "SELECT * FROM orders WHERE created_at >= date_trunc('day', now()) ORDER BY created_at DESC"
-        : 'SELECT * FROM orders ORDER BY created_at DESC LIMIT 200',
-    )
+    const since = scope === 'today' ? "created_at >= date_trunc('day', now())" : 'TRUE'
 
-    const orders = []
-    for (const order of ordersResult.rows) {
-      const itemsResult = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [order.id])
-      orders.push(serializeOrder(order, itemsResult.rows))
+    // Everything still in the kitchen, plus only the latest finished orders.
+    const ordersResult = await pool.query(`
+      (SELECT * FROM orders WHERE ${since} AND status IN ('preparing', 'almost'))
+      UNION ALL
+      (SELECT * FROM orders WHERE ${since} AND status IN ('ready', 'cancelled')
+         ORDER BY created_at DESC LIMIT 30)
+      ORDER BY created_at DESC
+    `)
+
+    // Real totals for the stat cards, so they stay correct even though
+    // only the latest finished orders are sent.
+    const countsResult = await pool.query(
+      `SELECT status, COUNT(*)::int AS n FROM orders WHERE ${since} GROUP BY status`,
+    )
+    const counts = { preparing: 0, almost: 0, ready: 0, cancelled: 0 }
+    for (const row of countsResult.rows) counts[row.status] = row.n
+
+    const ids = ordersResult.rows.map((o) => o.id)
+    const itemsResult = ids.length
+      ? await pool.query('SELECT * FROM order_items WHERE order_id = ANY($1)', [ids])
+      : { rows: [] }
+
+    const itemsByOrder = {}
+    for (const row of itemsResult.rows) {
+      ;(itemsByOrder[row.order_id] ||= []).push(row)
     }
-    res.json(orders)
+
+    const orders = ordersResult.rows.map((o) =>
+      serializeOrder(o, itemsByOrder[o.id] || []),
+    )
+    res.json({ orders, counts })
   } catch (err) {
     next(err)
   }
