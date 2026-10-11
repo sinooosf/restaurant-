@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, MoreVertical, Send, User } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowLeft, RotateCcw, Send, User } from 'lucide-react'
 import ChatbotAvatar from '/bot.png'
 import { useCart } from '../../context/CartContext'
+import FadeImage from '../ui/FadeImage'
 import { getFinalPrice } from '../../data/menu'
 import { QUICK_QUESTIONS, getBotResponse } from './chatbotResponses'
 
@@ -27,8 +29,6 @@ export default function ChatbotPanel({
       behavior: 'smooth',
     })
   }, [messages, open])
-
-  if (!open) return null
 
   function pushExchange(userText) {
     const userMessage = {
@@ -88,7 +88,16 @@ export default function ChatbotPanel({
   }
 
   return (
-    <div className="absolute inset-0 z-80 flex flex-col overflow-hidden bg-[#080303]">
+    <AnimatePresence>
+      {open && (
+    <motion.div
+      key="chatbot"
+      initial={{ opacity: 0, y: 40, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 40, scale: 0.98 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="absolute inset-0 z-80 flex flex-col overflow-hidden bg-[#080303]"
+    >
 
       {/* BACKGROUND GLOW */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -141,10 +150,14 @@ export default function ChatbotPanel({
         <button
           type="button"
           onClick={handleClear}
-          aria-label="Clear conversation"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-cream/60 transition hover:bg-white/10 hover:text-cream"
+          aria-label="Start a new chat"
+          title="Start a new chat"
+          className="group flex h-9 w-9 items-center justify-center rounded-full text-cream/60 transition hover:bg-white/10 hover:text-cream"
         >
-          <MoreVertical size={20} />
+          <RotateCcw
+            size={19}
+            className="transition-transform duration-500 group-active:-rotate-[360deg]"
+          />
         </button>
       </header>
 
@@ -198,7 +211,9 @@ export default function ChatbotPanel({
           <Send size={17} />
         </button>
       </form>
-    </div>
+    </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -206,7 +221,10 @@ function ChatBubble({ message, onAdd, onView }) {
   const isUser = message.from === 'user'
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className={`flex items-end gap-2 ${
         isUser ? 'flex-row-reverse' : ''
       }`}
@@ -260,10 +278,10 @@ function ChatBubble({ message, onAdd, onView }) {
                     key={item.id}
                     className="flex items-center gap-2 rounded-xl border border-black/5 bg-cream/95 p-1.5 text-ink"
                   >
-                    <img
+                    <FadeImage
                       src={item.image}
                       alt={item.name}
-                      className="h-10 w-10 rounded-lg object-cover"
+                      className="h-10 w-10 shrink-0 rounded-lg"
                     />
 
                     <div className="min-w-0 flex-1">
@@ -300,6 +318,6 @@ function ChatBubble({ message, onAdd, onView }) {
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

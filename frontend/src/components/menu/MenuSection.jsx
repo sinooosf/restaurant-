@@ -13,10 +13,17 @@ const STYLES = `
   50%      { opacity: 1; }
 }
 .menu-shine { animation: menu-shine 4s ease-in-out infinite; }
+@keyframes menu-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
 .menu-pulse { animation: menu-pulse 2.6s ease-in-out infinite; }
+.menu-rise  { animation: menu-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
 `
  
-export default function MenuSection({ items }) {
+// `resetKey` changes whenever another category is chosen. It makes the list
+// start again from the very top (and replay the fade-in) every time.
+export default function MenuSection({ items, resetKey }) {
   return (
     <section className="flex h-full min-h-0 flex-col bg-ink px-4">
       <style>{STYLES}</style>
@@ -63,15 +70,24 @@ export default function MenuSection({ items }) {
       </div>
  
       {/* ONLY THIS PART SCROLLS */}
-      <div className="min-h-0 flex-1 overflow-y-auto pb-40 pt-1">
+      <div
+        key={resetKey}
+        className="min-h-0 flex-1 overflow-y-auto pb-40 pt-4"
+      >
         {items.length === 0 ? (
           <p className="mt-10 text-center text-sm text-cream/50">
             No dishes match that search.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {items.map((item) => (
-              <MenuItemCard key={item.id} item={item} />
+            {items.map((item, index) => (
+              <div
+                key={item.id}
+                className="menu-rise"
+                style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
+              >
+                <MenuItemCard item={item} />
+              </div>
             ))}
           </div>
         )}

@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import { Check, X } from 'lucide-react'
 import { useOrder } from '../../context/OrderContext'
 
@@ -17,10 +18,31 @@ export default function OrderTracking() {
     finishOrder,
   } = useOrder()
 
-  if (!order || !trackingVisible) {
-    return null
-  }
+  // The sheet gets everything through props (not from the context) so it
+  // can still draw itself correctly while it slides away.
+  return (
+    <AnimatePresence>
+      {order && trackingVisible && (
+        <TrackingSheet
+          key="tracking"
+          order={order}
+          stages={stages}
+          hideTracking={hideTracking}
+          cancel={cancel}
+          finishOrder={finishOrder}
+        />
+      )}
+    </AnimatePresence>
+  )
+}
 
+function TrackingSheet({
+  order,
+  stages,
+  hideTracking,
+  cancel,
+  finishOrder,
+}) {
   const isCancelled = order.status === 'cancelled'
   const isReady = order.status === 'ready'
   const isFinished = isCancelled || isReady
@@ -50,8 +72,20 @@ export default function OrderTracking() {
         : 'Your food is on the way'
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center">
-      <div className="w-full max-w-sm rounded-t-3xl bg-panel p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:rounded-3xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      className="absolute inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center"
+    >
+      <motion.div
+        initial={{ y: 70, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 70, opacity: 0 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-sm rounded-t-3xl bg-panel p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:rounded-3xl"
+      >
 
         {/* Header */}
         <p className="text-center text-xs uppercase tracking-wide text-cream/50">
@@ -207,7 +241,7 @@ export default function OrderTracking() {
           </div>
         )}
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

@@ -1,6 +1,7 @@
 import { Ban, Minus, Plus } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 import { getFinalPrice } from '../../data/menu'
+import FadeImage from '../ui/FadeImage'
 
 export default function MenuItemCard({ item }) {
   const { quantities, addItem, removeItem } = useCart()
@@ -11,11 +12,10 @@ export default function MenuItemCard({ item }) {
   return (
     <div className="relative flex flex-col overflow-hidden rounded-2xl bg-cream text-ink shadow-lg shadow-black/30">
       <div className="relative aspect-square w-full">
-        <img
+        <FadeImage
           src={item.image}
           alt={item.name}
-          className="h-full w-full object-cover"
-          loading="lazy"
+          className="absolute inset-0"
         />
 
         <span className="absolute left-2 top-2 rounded-full bg-maroon px-2.5 py-1 text-[11px] font-bold text-cream shadow">

@@ -60,3 +60,31 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* -------------------------------------------------------------------------
+   STAFF DASHBOARD COLORS
+
+   The dashboard (everything under /admin) wears its own colors, so the
+   customer menu keeps its black-and-red look. All dashboard pages use the
+   same color names (ink, panel, line, maroon, cream), so changing the values
+   below recolors the whole dashboard at once.
+
+   Current palette: midnight navy + indigo.
+
+   Want a different mood? Replace the values with one of these:
+
+   TEAL      --color-maroon: #0d9488;  --color-maroon-bright: #2dd4bf;  --color-maroon-soft: #115e59;
+   ORANGE    --color-maroon: #ea580c;  --color-maroon-bright: #fb923c;  --color-maroon-soft: #9a3412;
+   ROSE      --color-maroon: #e11d48;  --color-maroon-bright: #fb7185;  --color-maroon-soft: #9f1239;
+   ------------------------------------------------------------------------- */
+.admin-theme {
+  --color-ink: #0a0f1e;
+  --color-panel: #121a30;
+  --color-panel-light: #1a2440;
+  --color-line: #27325a;
+  --color-cream: #e9eefc;
+
+  --color-maroon: #4f46e5;
+  --color-maroon-bright: #818cf8;
+  --color-maroon-soft: #312e81;
+}

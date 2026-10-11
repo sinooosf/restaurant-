@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getItemsForCategory } from '../../data/menu'
+import FadeImage from '../ui/FadeImage'
 
 // All animations live here so you don't need to touch index.css.
 // (Your index.css already shortens animations for people who
@@ -163,10 +164,10 @@ export default function CategoryList({
                         : 'border-line brightness-75 group-hover:scale-110 group-hover:brightness-100'
                     }`}
                   >
-                    <img
+                    <FadeImage
                       src={category.image}
                       alt={category.name}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full"
                     />
                   </div>
                 </div>

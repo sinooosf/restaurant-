@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   CATEGORIES,
   MENU_ITEMS,
@@ -27,6 +28,9 @@ export default function TablePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [chatbotOpen, setChatbotOpen] = useState(false)
+
+  // The list of dishes in the cart bar (opened by the cart button in the header).
+  const [cartOpen, setCartOpen] = useState(false)
 
   // Controls the "Is this your last order?" confirmation.
   const [confirmOrderOpen, setConfirmOrderOpen] = useState(false)
@@ -166,6 +170,7 @@ export default function TablePage() {
 
       // Both of them open the tracking screen automatically.
       setConfirmOrderOpen(false)
+      setCartOpen(false)
     } catch (error) {
       console.error('Failed to send order:', error)
       setOrderError(
@@ -188,11 +193,7 @@ export default function TablePage() {
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         onOpenSearch={handleOpenSearch}
-        onOpenCart={() =>
-          document
-            .getElementById('cart-anchor')
-            ?.scrollIntoView()
-        }
+        onOpenCart={() => setCartOpen((open) => !open)}
         onOpenChatbot={() => setChatbotOpen(true)}
         searchDisabled={searchLocked}
       />
@@ -208,7 +209,7 @@ export default function TablePage() {
 
       {/* NORMAL MENU */}
       <div className="min-h-0 flex-1">
-        <MenuSection items={visibleItems} />
+        <MenuSection items={visibleItems} resetKey={activeCategoryId} />
       </div>
 
       {/* SEARCH */}
@@ -218,13 +219,12 @@ export default function TablePage() {
         onClose={handleCloseSearch}
       />
 
-      {/* CART ANCHOR */}
-      <div id="cart-anchor" />
-
       {/* CART */}
       <CartBar
         onPlaceOrder={handleRequestPlaceOrder}
         placing={placing}
+        expanded={cartOpen}
+        onToggleExpanded={() => setCartOpen((open) => !open)}
         placeLabel={
           addingToOrder ? 'ADD TO YOUR ORDER' : 'PLACE THE ORDER'
         }
@@ -247,8 +247,14 @@ export default function TablePage() {
       {/* LAST ORDER CONFIRMATION */}
       {/* ------------------------------------------------------------------ */}
 
+      <AnimatePresence>
       {confirmOrderOpen && (
-        <div
+        <motion.div
+          key="confirm-order"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
           className="absolute inset-0 z-[100] flex items-center justify-center bg-black/55 px-5 backdrop-blur-[3px]"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !placing) {
@@ -256,7 +262,11 @@ export default function TablePage() {
             }
           }}
         >
-          <div
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="w-full max-w-sm rounded-3xl border border-line bg-panel p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
             onMouseDown={(event) => event.stopPropagation()}
           >
@@ -333,9 +343,10 @@ export default function TablePage() {
                     : 'YES, PLACE ORDER'}
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
     </div>
   )

@@ -1,11 +1,17 @@
 import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Minus, Plus, ShoppingCart } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
+import FadeImage from '../ui/FadeImage'
 
 export default function CartBar({
   onPlaceOrder,
   placing,
   placeLabel = 'PLACE THE ORDER',
+  // The list of dishes can be opened from outside (the cart button in the
+  // header). If TablePage doesn't pass these, it opens/closes by itself.
+  expanded: expandedProp,
+  onToggleExpanded,
 }) {
   const {
     lines,
@@ -15,7 +21,15 @@ export default function CartBar({
     removeItem,
   } = useCart()
 
-  const [expanded, setExpanded] = useState(false)
+  const [internalExpanded, setInternalExpanded] = useState(false)
+
+  const isControlled = expandedProp !== undefined
+  const expanded = isControlled ? expandedProp : internalExpanded
+
+  function toggleExpanded() {
+    if (isControlled) onToggleExpanded?.()
+    else setInternalExpanded((prev) => !prev)
+  }
 
   const canPlaceOrder = totalCount > 0 && !placing
 
@@ -32,62 +46,79 @@ export default function CartBar({
   return (
     <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-line bg-panel px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
 
-      {/* EXPANDED CART */}
-      {expanded && totalCount > 0 && (
-        <div className="mb-3 max-h-52 space-y-2 overflow-y-auto pr-1">
-          {lines.map(({ item, quantity, lineTotal }) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-2.5 rounded-xl bg-panel-light p-2"
-            >
-              <img
-                src={item.image}
-                alt={item.name}
-                className="h-11 w-11 rounded-lg object-cover"
-              />
-
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-cream">
-                  {item.name}
+      {/* EXPANDED CART (slides open and closed smoothly) */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="cart-list"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="mb-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+              {totalCount === 0 ? (
+                <p className="rounded-xl bg-panel-light px-3 py-4 text-center text-sm text-cream/50">
+                  Your order is empty. Add something tasty from the menu!
                 </p>
+              ) : (
+                lines.map(({ item, quantity, lineTotal }) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2.5 rounded-xl bg-panel-light p-2"
+                  >
+                    <FadeImage
+                      src={item.image}
+                      alt={item.name}
+                      className="h-11 w-11 shrink-0 rounded-lg"
+                    />
 
-                <p className="text-xs text-cream/50">
-                  {lineTotal} DH
-                </p>
-              </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-cream">
+                        {item.name}
+                      </p>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.id)}
-                  aria-label={`Remove one ${item.name}`}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
-                >
-                  <Minus size={12} />
-                </button>
+                      <p className="text-xs text-cream/50">
+                        {lineTotal} DH
+                      </p>
+                    </div>
 
-                <span className="w-4 text-center text-xs text-cream">
-                  {quantity}
-                </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.id)}
+                        aria-label={`Remove one ${item.name}`}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
+                      >
+                        <Minus size={12} />
+                      </button>
 
-                <button
-                  type="button"
-                  onClick={() => addItem(item.id)}
-                  aria-label={`Add another ${item.name}`}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
+                      <span className="w-4 text-center text-xs text-cream">
+                        {quantity}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => addItem(item.id)}
+                        aria-label={`Add another ${item.name}`}
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ORDER SUMMARY */}
       <button
         type="button"
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={toggleExpanded}
         className="flex w-full items-center gap-3 py-1"
         aria-expanded={expanded}
       >

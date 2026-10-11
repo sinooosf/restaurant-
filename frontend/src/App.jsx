@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { CartProvider } from './context/CartContext'
 import { OrderProvider } from './context/OrderContext'
-import { loadMenuData } from './data/menu'
+import { CATEGORIES, MENU_ITEMS, loadMenuData } from './data/menu'
+import { preloadImages } from './utils/preloadImages'
 import { loadTables } from './data/tables'
 import { loadChatbotFaqs } from './components/chatbot/chatbotResponses'
 import IntroSplash from './components/layout/IntroSplash'
@@ -34,7 +35,18 @@ function CustomerApp() {
   const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
-    Promise.all([loadMenuData(), loadTables(), loadChatbotFaqs()]).finally(() => setDataLoaded(true))
+    Promise.all([loadMenuData(), loadTables(), loadChatbotFaqs()])
+      // While the intro plays, download every picture so the menu shows
+      // them instantly (gives up after 8 seconds so it never gets stuck).
+      .then(() =>
+        preloadImages([
+          '/logo.png',
+          '/bot.png',
+          ...CATEGORIES.map((category) => category.image),
+          ...MENU_ITEMS.map((item) => item.image),
+        ])
+      )
+      .finally(() => setDataLoaded(true))
   }, [])
 
   return (
