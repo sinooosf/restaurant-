@@ -7,6 +7,7 @@
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
+
 async function request(path, { method = 'GET', body, password } = {}) {
   const headers = {}
   if (body) headers['Content-Type'] = 'application/json'
@@ -52,6 +53,15 @@ export function submitOrder({ tableId, items }) {
 
 export function getOrder(orderId) {
   return request(`/orders/${orderId}`)
+}
+
+export function getActiveOrderForTable(tableId) {
+  return request(`/orders/table/${encodeURIComponent(tableId)}/active`)
+}
+
+export function addItemsToOrder(orderId, items) {
+  const trimmedItems = items.map((item) => ({ id: item.id, quantity: item.quantity }))
+  return request(`/orders/${orderId}/items`, { method: 'POST', body: { items: trimmedItems } })
 }
 
 export function cancelOrder(orderId) {
