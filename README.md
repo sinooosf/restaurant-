@@ -127,3 +127,23 @@ restaurant-system/
         │   └── pages/             Overview, Orders, Menu, Tables, Chatbot
         └── tests/                 22 Vitest tests
 ```
+
+
+---
+
+## What changed in this version
+
+- **ToHomeOrder link** — for customers who order without a table. Open `/ToHomeOrder`
+  (it is always the last link in Tables → *QR Links*). Their orders appear in the
+  dashboard as **To Home** instead of a table number. Each phone only ever sees its own
+  To Home order.
+- **New dashboard design** (Overview, Orders, Menu, Tables, Chatbot) in the red/black style.
+  Orders now also have a **Completed** status (Preparing → Almost Ready → Ready → Completed).
+- **Dashboard chatbot (ChefBot)** answers staff questions about live orders, tables, sales
+  and best sellers. The old "add questions" screen was removed from the dashboard; the
+  customer chatbot's existing FAQ answers still work.
+- **Database upgrades are automatic**: the server adds the new columns when it starts, and
+  keeps your existing data.
+- Set `RESTAURANT_TZ` in `backend/.env` (default `Africa/Algiers`) so "today" matches your
+  restaurant's clock.
+- Run `npm install` in `frontend/` once (two new font packages were added).

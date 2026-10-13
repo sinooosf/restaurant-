@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, RotateCcw, Send, User } from 'lucide-react'
-import ChatbotAvatar from '/bot.png'
+// Files in /public are referenced by URL, never imported.
+const ChatbotAvatar = '/bot.png'
 import { useCart } from '../../context/CartContext'
 import FadeImage from '../ui/FadeImage'
 import { getFinalPrice } from '../../data/menu'
@@ -13,6 +14,33 @@ const GREETING = {
   text: "Hi! I'm Sinoo 👋 Ask me anything about the menu.",
 }
 
+// If anything inside the chat ever throws, only the chat is dropped (and the
+// panel simply closes) — the menu and the customer's cart keep working
+// instead of the whole page going blank.
+export class ChatbotBoundary extends Component {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  componentDidCatch(error) {
+    console.error('The chatbot crashed:', error)
+    this.props.onCrash?.()
+  }
+
+  componentDidUpdate(previous) {
+    // Let the customer try again the next time they open it.
+    if (this.state.failed && this.props.open && !previous.open) {
+      this.setState({ failed: false })
+    }
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children
+  }
+}
+
 export default function ChatbotPanel({
   open,
   onClose,
@@ -22,12 +50,24 @@ export default function ChatbotPanel({
   const [draft, setDraft] = useState('')
   const { addItem } = useCart()
   const scrollRef = useRef(null)
+  const timers = useRef(new Set())
+
+  // Cancel any reply that is still "typing" when the panel unmounts, so a
+  // late timer can never update a component that is already gone.
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      pending.forEach((id) => clearTimeout(id))
+      pending.clear()
+    }
+  }, [])
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
-    })
+    if (!open) return
+    const box = scrollRef.current
+    if (!box) return
+
+    box.scrollTo({ top: box.scrollHeight, behavior: 'auto' })
   }, [messages, open])
 
   function pushExchange(userText) {
@@ -49,8 +89,16 @@ export default function ChatbotPanel({
       loadingMessage,
     ])
 
-    setTimeout(() => {
-      const response = getBotResponse(userText)
+    const timerId = setTimeout(() => {
+      timers.current.delete(timerId)
+
+      let response
+      try {
+        response = getBotResponse(userText)
+      } catch (error) {
+        console.error('Chatbot could not answer:', error)
+        response = { text: 'Sorry, I had trouble with that. Please try another question.' }
+      }
 
       const botMessage = {
         id: `b-${Date.now()}`,
@@ -65,7 +113,9 @@ export default function ChatbotPanel({
             : message
         )
       )
-    }, 1000)
+    }, 700)
+
+    timers.current.add(timerId)
   }
 
   function handleQuickQuestion(question) {
@@ -92,31 +142,20 @@ export default function ChatbotPanel({
       {open && (
     <motion.div
       key="chatbot"
-      initial={{ opacity: 0, y: 40, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 40, scale: 0.98 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute inset-0 z-80 flex flex-col overflow-hidden bg-[#080303]"
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 24 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      className="absolute inset-0 z-[80] flex flex-col overflow-hidden bg-[#080303] will-change-[transform,opacity]"
     >
 
-      {/* BACKGROUND GLOW */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-
-        {/* Top red glow */}
-        <div className="absolute -right-32 -top-32 h-[420px] w-[420px] rounded-full bg-red-600/30 blur-[120px]" />
-
-        {/* Left red glow */}
-        <div className="absolute -left-40 top-[30%] h-[360px] w-[360px] rounded-full bg-red-900/30 blur-[130px]" />
-
-        {/* Bottom glow */}
-        <div className="absolute -bottom-40 right-[-80px] h-[420px] w-[420px] rounded-full bg-red-800/20 blur-[140px]" />
-
-        {/* Dark red gradient overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(180,20,35,0.35),transparent_38%),radial-gradient(circle_at_0%_55%,rgba(100,10,20,0.28),transparent_42%),linear-gradient(145deg,#120304_0%,#080303_45%,#140305_100%)]" />
-      </div>
+      {/* BACKGROUND — one static gradient. (It used to be three huge blurred
+          circles; blur filters that size on a layer that is also animating
+          are what made phones lag and crash when the chat opened/closed.) */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(180,20,35,0.32),transparent_42%),radial-gradient(circle_at_0%_55%,rgba(100,10,20,0.26),transparent_46%),radial-gradient(circle_at_90%_100%,rgba(130,15,25,0.2),transparent_44%),linear-gradient(145deg,#120304_0%,#080303_45%,#140305_100%)]" />
 
       {/* HEADER */}
-      <header className="relative z-10 flex items-center gap-3 border-b border-white/10 bg-black/20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] backdrop-blur-xl">
+      <header className="relative z-10 flex items-center gap-3 border-b border-white/10 bg-black/20 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
 
         <button
           type="button"
@@ -128,12 +167,12 @@ export default function ChatbotPanel({
         </button>
 
         <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-red-500/30 blur-xl" />
+          <div className="absolute inset-0 rounded-full bg-red-500/20" />
 
           <img
             src={ChatbotAvatar}
             alt="Chatbot Avatar"
-            className="relative h-14 w-auto object-contain"
+            className="relative h-14 w-14 object-contain"
           />
         </div>
 
@@ -183,7 +222,7 @@ export default function ChatbotPanel({
             key={question}
             type="button"
             onClick={() => handleQuickQuestion(question)}
-            className="shrink-0 rounded-full border border-red-300/20 bg-red-950/30 px-3.5 py-2 text-xs font-medium text-cream/80 backdrop-blur-md transition hover:border-red-400/40 hover:bg-red-800/30 hover:text-cream"
+            className="shrink-0 rounded-full border border-red-300/20 bg-red-950/30 px-3.5 py-2 text-xs font-medium text-cream/80 transition hover:border-red-400/40 hover:bg-red-800/30 hover:text-cream"
           >
             {question}
           </button>
@@ -193,14 +232,14 @@ export default function ChatbotPanel({
       {/* INPUT */}
       <form
         onSubmit={handleSubmit}
-        className="relative z-10 flex items-center gap-2 border-t border-white/5 bg-black/20 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 backdrop-blur-xl"
+        className="relative z-10 flex items-center gap-2 border-t border-white/5 bg-black/20 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3"
       >
         <input
           type="text"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Ask about the menu..."
-          className="min-w-0 flex-1 rounded-full border border-red-300/10 bg-white/10 px-4 py-3 text-sm text-cream placeholder:text-cream/35 backdrop-blur-md transition focus:border-red-400/30 focus:bg-white/15 focus:outline-none"
+          className="min-w-0 flex-1 rounded-full border border-red-300/10 bg-white/10 px-4 py-3 text-sm text-cream placeholder:text-cream/35 transition focus:border-red-400/30 focus:bg-white/15 focus:outline-none"
         />
 
         <button
@@ -236,8 +275,6 @@ function ChatBubble({ message, onAdd, onView }) {
         </span>
       ) : (
         <div className="relative shrink-0">
-          <div className="absolute inset-0 rounded-full bg-red-500/20 blur-md" />
-
           <img
             src={ChatbotAvatar}
             alt="Chatbot Avatar"
@@ -251,7 +288,7 @@ function ChatBubble({ message, onAdd, onView }) {
         className={`max-w-[75%] rounded-2xl border px-3.5 py-2.5 text-sm text-cream shadow-lg ${
           isUser
             ? 'rounded-br-sm border-red-400/20 bg-red-700/80'
-            : 'rounded-bl-sm border-white/10 bg-black/30 backdrop-blur-xl'
+            : 'rounded-bl-sm border-white/10 bg-black/30'
         }`}
       >
 

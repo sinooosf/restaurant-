@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Minus, Plus, ShoppingCart } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
@@ -12,6 +12,10 @@ export default function CartBar({
   // header). If TablePage doesn't pass these, it opens/closes by itself.
   expanded: expandedProp,
   onToggleExpanded,
+  // Called with the bar's real height (and again whenever it changes, e.g.
+  // when the list of dishes opens) so the menu can leave exactly enough
+  // room below its last row.
+  onHeightChange,
 }) {
   const {
     lines,
@@ -22,6 +26,30 @@ export default function CartBar({
   } = useCart()
 
   const [internalExpanded, setInternalExpanded] = useState(false)
+  const barRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const bar = barRef.current
+    if (!bar || !onHeightChange) return
+
+    let frame = 0
+    const report = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => onHeightChange(Math.ceil(bar.getBoundingClientRect().height)))
+    }
+
+    report()
+
+    if (typeof ResizeObserver === 'undefined') return () => cancelAnimationFrame(frame)
+
+    const observer = new ResizeObserver(report)
+    observer.observe(bar)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [onHeightChange])
 
   const isControlled = expandedProp !== undefined
   const expanded = isControlled ? expandedProp : internalExpanded
@@ -44,7 +72,10 @@ export default function CartBar({
   }
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-line bg-panel px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+    <div
+      ref={barRef}
+      className="absolute inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-line bg-panel px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-8px_30px_rgba(0,0,0,0.45)]"
+    >
 
       {/* EXPANDED CART (slides open and closed smoothly) */}
       <AnimatePresence initial={false}>

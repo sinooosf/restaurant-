@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, X } from 'lucide-react'
 import { useOrder } from '../../context/OrderContext'
+import { tableLabel } from '../../data/tables'
 
 const STAGE_LABELS = {
   preparing: 'Preparing',
@@ -44,10 +45,11 @@ function TrackingSheet({
   finishOrder,
 }) {
   const isCancelled = order.status === 'cancelled'
-  const isReady = order.status === 'ready'
+  // "completed" is the staff closing a ready order — to the customer it is still "ready".
+  const isReady = order.status === 'ready' || order.status === 'completed'
   const isFinished = isCancelled || isReady
 
-  const stageIndex = stages.indexOf(order.status)
+  const stageIndex = isReady ? stages.length - 1 : stages.indexOf(order.status)
 
   const fillPercent =
     stageIndex <= 0
@@ -89,7 +91,7 @@ function TrackingSheet({
 
         {/* Header */}
         <p className="text-center text-xs uppercase tracking-wide text-cream/50">
-          Table {order.tableId} &middot; {subtitle}
+          {tableLabel(order.tableId)} &middot; {subtitle}
         </p>
 
         <h2 className="mt-1 text-center font-display text-xl text-cream">

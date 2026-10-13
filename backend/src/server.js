@@ -6,6 +6,7 @@ import tableRoutes from './routes/tables.js'
 import orderRoutes from './routes/orders.js'
 import chatbotRoutes from './routes/chatbot.js'
 import adminRoutes from './routes/admin.js'
+import { ensureSchema } from './migrate.js'
 
 const app = express()
 
@@ -32,6 +33,16 @@ app.use((err, req, res, next) => {
 })
 
 const port = process.env.PORT || 4000
-app.listen(port, () => {
-  console.log(`Meet The Chefs API running on http://localhost:${port}`)
-})
+
+// Bring an older database up to date (new columns, the To Home link...)
+// before accepting any request.
+ensureSchema()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`Meet The Chefs API running on http://localhost:${port}`)
+    })
+  })
+  .catch((err) => {
+    console.error('Could not prepare the database:', err)
+    process.exit(1)
+  })

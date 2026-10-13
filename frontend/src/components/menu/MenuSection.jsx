@@ -23,7 +23,11 @@ const STYLES = `
  
 // `resetKey` changes whenever another category is chosen. It makes the list
 // start again from the very top (and replay the fade-in) every time.
-export default function MenuSection({ items, resetKey }) {
+// `bottomInset` is the height of the cart bar that floats over the bottom of
+// the screen. The list keeps that much room (plus a comfortable gap) below its
+// last row, so the final dishes can always be scrolled fully into view
+// without ever sliding under the bar.
+export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
   return (
     <section className="flex h-full min-h-0 flex-col bg-ink px-4">
       <style>{STYLES}</style>
@@ -72,7 +76,8 @@ export default function MenuSection({ items, resetKey }) {
       {/* ONLY THIS PART SCROLLS */}
       <div
         key={resetKey}
-        className="min-h-0 flex-1 overflow-y-auto pb-40 pt-4"
+        className="min-h-0 flex-1 overflow-y-auto pt-4"
+        style={{ paddingBottom: bottomInset + 28 }}
       >
         {items.length === 0 ? (
           <p className="mt-10 text-center text-sm text-cream/50">

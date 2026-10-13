@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { VALID_TABLE_IDS } from '../data/tables'
+import { HOME_TABLE_ID, VALID_TABLE_IDS } from '../data/tables'
 
 export default function TableNotFound() {
   return (
@@ -10,7 +10,7 @@ export default function TableNotFound() {
         or try one of the demo tables below.
       </p>
       <div className="flex flex-wrap justify-center gap-2">
-        {VALID_TABLE_IDS.map((id) => (
+        {VALID_TABLE_IDS.filter((id) => id !== HOME_TABLE_ID).map((id) => (
           <Link
             key={id}
             to={`/table/${id}`}

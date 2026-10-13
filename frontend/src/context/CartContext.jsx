@@ -7,9 +7,10 @@ import {
   useCallback,
 } from 'react'
 
-import { matchPath, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 
 import { MENU_ITEMS, getFinalPrice } from '../data/menu'
+import { tableIdFromPath } from '../data/tables'
 
 const CartContext = createContext(null)
 
@@ -39,8 +40,7 @@ function readSavedCart(key) {
 export function CartProvider({ children }) {
   // Which table is this phone looking at? (from the /table/:tableId address)
   const location = useLocation()
-  const tableId = matchPath('/table/:tableId', location.pathname)?.params
-    .tableId
+  const tableId = tableIdFromPath(location.pathname)
   const storageKey = tableId ? `mtc-cart-table-${tableId}` : null
 
   const [quantities, setQuantities] = useState({})

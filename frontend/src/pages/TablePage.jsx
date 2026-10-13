@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   CATEGORIES,
@@ -6,6 +6,7 @@ import {
   getItemsForCategory,
 } from '../data/menu'
 import { useTableId } from '../hooks/useTableId'
+import { HOME_TABLE_ID } from '../data/tables'
 import { useCart } from '../context/CartContext'
 import { useOrder } from '../context/OrderContext'
 import Header from '../components/layout/Header'
@@ -15,11 +16,13 @@ import SearchResultsOverlay from '../components/menu/SearchResultsOverlay'
 import CartBar from '../components/cart/CartBar'
 import OrderTracking from '../components/order/OrderTracking'
 import OrderStatusChip from '../components/order/OrderStatusChip'
-import ChatbotPanel from '../components/chatbot/ChatbotPanel'
+import ChatbotPanel, { ChatbotBoundary } from '../components/chatbot/ChatbotPanel'
 import TableNotFound from './TableNotFound'
+import { TableChecking, TableOffline } from './TableStatusScreens'
 
 export default function TablePage() {
-  const { tableId, isValid } = useTableId()
+  const { tableId, status: tableStatus, retry: retryTable } = useTableId()
+  const isHome = tableId === HOME_TABLE_ID
 
   const [activeCategoryId, setActiveCategoryId] = useState(
     CATEGORIES[0].id
@@ -36,6 +39,11 @@ export default function TablePage() {
   const [confirmOrderOpen, setConfirmOrderOpen] = useState(false)
 
   const [placing, setPlacing] = useState(false)
+
+  // Height of the cart bar at the bottom — the menu keeps that much room
+  // below its last row (see MenuSection).
+  const [cartBarHeight, setCartBarHeight] = useState(150)
+  const handleCartBarHeight = useCallback((height) => setCartBarHeight(height), [])
 
   // Shown inside the confirmation if the server refuses (e.g. the kitchen
   // already finished the order so nothing can be added anymore).
@@ -91,9 +99,9 @@ export default function TablePage() {
       )
   }, [searchTerm])
 
-  if (!isValid) {
-    return <TableNotFound />
-  }
+  if (tableStatus === 'checking') return <TableChecking />
+  if (tableStatus === 'offline') return <TableOffline onRetry={retryTable} />
+  if (tableStatus !== 'valid') return <TableNotFound />
 
   // -------------------------------------------------------------------------
   // CATEGORY
@@ -188,6 +196,10 @@ export default function TablePage() {
   return (
     <div className="relative flex h-full flex-col bg-ink">
 
+      {/* Everything under the chat is hidden while it is open, so the
+          browser stops painting (and animating) a whole menu nobody can see. */}
+      <div className={`flex min-h-0 flex-1 flex-col ${chatbotOpen ? 'invisible' : ''}`}>
+
       {/* HEADER */}
       <Header
         searchTerm={searchTerm}
@@ -209,7 +221,11 @@ export default function TablePage() {
 
       {/* NORMAL MENU */}
       <div className="min-h-0 flex-1">
-        <MenuSection items={visibleItems} resetKey={activeCategoryId} />
+        <MenuSection
+          items={visibleItems}
+          resetKey={activeCategoryId}
+          bottomInset={cartBarHeight}
+        />
       </div>
 
       {/* SEARCH */}
@@ -225,6 +241,7 @@ export default function TablePage() {
         placing={placing}
         expanded={cartOpen}
         onToggleExpanded={() => setCartOpen((open) => !open)}
+        onHeightChange={handleCartBarHeight}
         placeLabel={
           addingToOrder ? 'ADD TO YOUR ORDER' : 'PLACE THE ORDER'
         }
@@ -236,12 +253,16 @@ export default function TablePage() {
       {/* ORDER TRACKING */}
       <OrderTracking />
 
+      </div>
+
       {/* CHATBOT */}
-      <ChatbotPanel
-        open={chatbotOpen}
-        onClose={() => setChatbotOpen(false)}
-        onNavigateToCategory={handleNavigateFromChat}
-      />
+      <ChatbotBoundary open={chatbotOpen} onCrash={() => setChatbotOpen(false)}>
+        <ChatbotPanel
+          open={chatbotOpen}
+          onClose={() => setChatbotOpen(false)}
+          onNavigateToCategory={handleNavigateFromChat}
+        />
+      </ChatbotBoundary>
 
       {/* ------------------------------------------------------------------ */}
       {/* LAST ORDER CONFIRMATION */}
@@ -279,7 +300,9 @@ export default function TablePage() {
             <p className="mt-2 text-sm leading-relaxed text-cream/55">
               {addingToOrder
                 ? 'These dishes will be added to the order you already placed. The kitchen sees them right away.'
-                : 'If you are finished ordering, confirm and we will send your order to the kitchen.'}
+                : isHome
+                  ? 'This order is to take home. If you are finished ordering, confirm and we will send it to the kitchen.'
+                  : 'If you are finished ordering, confirm and we will send your order to the kitchen.'}
             </p>
 
             {/* Current order summary */}

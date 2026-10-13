@@ -14,6 +14,12 @@ import TablePage from '../pages/TablePage'
 vi.mock('../services/api', () => ({
   fetchMenu: vi.fn(),
   fetchTables: vi.fn(),
+  // Asks the server about one table: 99 does not exist, everything else does.
+  fetchTable: vi.fn(async (id) => {
+    if (id === '99') throw Object.assign(new Error('Table not found.'), { status: 404 })
+    return { id, label: `Table ${id}`, kind: id === 'home' ? 'home' : 'table', seats: 4 }
+  }),
+  getActiveOrderForTable: vi.fn(async () => null),
   fetchChatbotFaqs: vi.fn(),
   submitOrder: vi.fn(async ({ tableId, items }) => ({
     id: 'order-test-1',
@@ -34,13 +40,14 @@ vi.mock('../services/api', () => ({
   cancelOrder: vi.fn(async (id) => ({ id, status: 'cancelled' })),
 }))
 
-function renderAtTable(tableId) {
+function renderAtPath(path) {
   return render(
-    <MemoryRouter initialEntries={[`/table/${tableId}`]}>
+    <MemoryRouter initialEntries={[path]}>
       <CartProvider>
         <OrderProvider>
           <Routes>
             <Route path="/table/:tableId" element={<TablePage />} />
+            <Route path="/ToHomeOrder" element={<TablePage />} />
           </Routes>
         </OrderProvider>
       </CartProvider>
@@ -48,15 +55,36 @@ function renderAtTable(tableId) {
   )
 }
 
+const renderAtTable = (tableId) => renderAtPath(`/table/${tableId}`)
+
 describe('Table routing', () => {
   it('shows the menu for a valid table id', () => {
     renderAtTable('3')
     expect(screen.getByText('MENU')).toBeInTheDocument()
   })
 
-  it('shows a friendly message for a table id outside 1-5', () => {
+  it('shows a friendly message for a table the server does not know', async () => {
     renderAtTable('99')
-    expect(screen.getByText('Table not found')).toBeInTheDocument()
+    expect(await screen.findByText('Table not found')).toBeInTheDocument()
+  })
+
+  it('opens a table that was added from the dashboard after the app loaded', async () => {
+    // "6" is not in the built-in list, but the server knows it.
+    renderAtTable('6')
+    expect(await screen.findByText('MENU')).toBeInTheDocument()
+  })
+
+  it('opens the ToHomeOrder link and labels the order "To Home"', async () => {
+    const user = userEvent.setup()
+    renderAtPath('/ToHomeOrder')
+
+    await user.click(await screen.findByRole('button', { name: /^add margherita$/i }))
+    await user.click(screen.getByRole('button', { name: /place the order/i }))
+    await user.click(screen.getByRole('button', { name: /yes, place order/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/to home/i)).toBeInTheDocument()
+    })
   })
 
   it('attaches the scanned table id to a placed order', async () => {

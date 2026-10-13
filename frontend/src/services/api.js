@@ -22,7 +22,11 @@ async function request(path, { method = 'GET', body, password } = {}) {
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(data.error || `Request to ${path} failed (${response.status})`)
+    const error = new Error(data.error || `Request to ${path} failed (${response.status})`)
+    // Lets callers tell "the server said no" (404, 409...) apart from
+    // "the server could not be reached" (no status at all).
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -38,6 +42,10 @@ export function fetchMenu() {
 
 export function fetchTables() {
   return request('/tables')
+}
+
+export function fetchTable(id) {
+  return request(`/tables/${encodeURIComponent(id)}`)
 }
 
 export function fetchChatbotFaqs() {
@@ -106,6 +114,18 @@ export function adminCreateTable(password, table) {
   return request('/admin/tables', { method: 'POST', body: table, password })
 }
 
+export function adminUpdateTable(password, id, changes) {
+  return request(`/admin/tables/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes, password })
+}
+
+export function adminCreateCategory(password, category) {
+  return request('/admin/categories', { method: 'POST', body: category, password })
+}
+
+export function adminDeleteCategory(password, id) {
+  return request(`/admin/categories/${encodeURIComponent(id)}`, { method: 'DELETE', password })
+}
+
 export function adminDeleteTable(password, id) {
   return request(`/admin/tables/${id}`, { method: 'DELETE', password })
 }
@@ -126,8 +146,28 @@ export function adminDeleteFaq(password, id) {
   return request(`/admin/chatbot-faqs/${id}`, { method: 'DELETE', password })
 }
 
-export function adminFetchOrders(password) {
-  return request('/admin/orders', { password })
+export function adminFetchOrders(password, range = 'today') {
+  return request(`/admin/orders?range=${encodeURIComponent(range)}`, { password })
+}
+
+export function adminFetchOrder(password, id) {
+  return request(`/admin/orders/${encodeURIComponent(id)}`, { password })
+}
+
+export function adminFetchSummary(password) {
+  return request('/admin/summary', { password })
+}
+
+export function adminFetchOverview(password, range = 'today') {
+  return request(`/admin/overview?range=${encodeURIComponent(range)}`, { password })
+}
+
+export function adminMoveOrder(password, id, tableId) {
+  return request(`/admin/orders/${id}/move`, { method: 'PATCH', body: { tableId }, password })
+}
+
+export function adminMergeOrders(password, fromOrderId, intoOrderId) {
+  return request('/admin/orders/merge', { method: 'POST', body: { fromOrderId, intoOrderId }, password })
 }
 
 export function adminUpdateOrderStatus(password, id, status) {

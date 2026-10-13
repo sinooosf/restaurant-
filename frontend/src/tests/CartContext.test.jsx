@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { CartProvider, useCart } from '../context/CartContext'
 
 function wrapper({ children }) {
-  return <CartProvider>{children}</CartProvider>
+  return (
+    <MemoryRouter initialEntries={['/table/1']}>
+      <CartProvider>{children}</CartProvider>
+    </MemoryRouter>
+  )
 }
 
 describe('CartContext', () => {

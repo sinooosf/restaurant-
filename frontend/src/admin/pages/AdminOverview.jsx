@@ -1,425 +1,290 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  DollarSign,
-  Receipt,
-  TrendingUp,
+  Armchair,
+  ChartNoAxesCombined,
+  CircleDollarSign,
+  ClipboardCheck,
+  ClipboardList,
+  List,
+  Star,
+  UsersRound,
+  XCircle,
+  Hourglass,
 } from 'lucide-react'
 import { useAdminAuth } from '../AdminAuthContext'
-import { adminFetchEarningsToday } from '../../services/api'
+import { adminFetchOverview } from '../../services/api'
+import SalesChart from '../components/SalesChart'
+import {
+  Card,
+  CardTitle,
+  Dropdown,
+  ErrorBanner,
+  PageTop,
+  Spinner,
+  StatCard,
+  StatusBadge,
+  TablePill,
+  VibesCard,
+} from '../components/ui'
+import { clockTime, itemsSummary, money, percentChange } from '../components/format'
+
+const POLL_MS = 10000
 
 export default function AdminOverview() {
   const { password } = useAdminAuth()
-  const [earnings, setEarnings] = useState(null)
+  const [range, setRange] = useState('today')
+  const [metric, setMetric] = useState('orders')
+  const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
+    setData(null)
 
-    adminFetchEarningsToday(password)
-      .then((data) => {
-        if (!cancelled) setEarnings(data)
-      })
-      .catch((err) => {
+    async function load() {
+      try {
+        const result = await adminFetchOverview(password, range)
+        if (!cancelled) {
+          setData(result)
+          setError('')
+        }
+      } catch (err) {
         if (!cancelled) setError(err.message)
-      })
+      }
+    }
 
+    load()
+    const timer = setInterval(load, POLL_MS)
     return () => {
       cancelled = true
+      clearInterval(timer)
     }
-  }, [password])
+  }, [password, range])
+
+  const isToday = range === 'today'
+  const vs = isToday ? 'vs. yesterday' : 'vs. day before'
 
   return (
     <div className="space-y-6">
+      <PageTop
+        title="Overview"
+        subtitle={isToday ? "Here's what's happening at your restaurant today." : "Here's how your restaurant did yesterday."}
+        range={range}
+        onRange={setRange}
+        showBell={false}
+      />
 
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-maroon-bright">
-            Analytics
-          </p>
+      <ErrorBanner message={error} onClose={() => setError('')} />
 
-          <h1 className="mt-1 font-display text-3xl font-semibold text-cream">
-            Today
-          </h1>
-
-          <p className="mt-1 text-sm text-cream/40">
-            Your restaurant performance for today.
-          </p>
+      {!data ? (
+        <div className="flex justify-center py-32">
+          <Spinner className="h-8 w-8" />
         </div>
-
-        <div className="text-xs text-cream/30">
-          Resets automatically at midnight
-        </div>
-      </div>
-
-      {error && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          {error}
-        </div>
+      ) : (
+        <Content data={data} metric={metric} setMetric={setMetric} range={range} setRange={setRange} vs={vs} isToday={isToday} />
       )}
-
-      {/* Main analytics */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-
-        <AnalyticsCard
-          icon={DollarSign}
-          label="Earnings"
-          value={earnings ? `${formatNumber(earnings.total)} DA` : '…'}
-          change="+12.5%"
-          positive
-          chart="earnings"
-        />
-
-        <AnalyticsCard
-          icon={Receipt}
-          label="Orders"
-          value={earnings ? formatNumber(earnings.orderCount) : '…'}
-          change="+8.2%"
-          positive
-          chart="orders"
-        />
-
-      </div>
-
-      {/* Activity */}
-      <div className="rounded-3xl border border-line bg-panel p-5 sm:p-6">
-
-        <div className="flex items-start justify-between">
-
-          <div>
-            <p className="text-sm font-medium text-cream">
-              Today's activity
-            </p>
-
-            <p className="mt-1 text-xs text-cream/35">
-              Revenue and order activity throughout the day
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 rounded-full border border-line bg-panel-light px-3 py-1.5 text-xs text-cream/40">
-            <span className="h-1.5 w-1.5 rounded-full bg-maroon-bright" />
-            Today
-          </div>
-
-        </div>
-
-        <ActivityChart />
-
-      </div>
     </div>
   )
 }
 
+function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
+  const { current, previous, popular, quick, recent } = data
 
-/* -------------------------------------------------------------------------- */
-/* ANALYTICS CARD                                                             */
-/* -------------------------------------------------------------------------- */
+  const totalForBars = Math.max(1, quick.pending + quick.completed + quick.cancelled)
 
-function AnalyticsCard({
-  icon: Icon,
-  label,
-  value,
-  change,
-  positive,
-  chart,
-}) {
   return (
-    <div className="group overflow-hidden rounded-3xl border border-line bg-panel">
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<ClipboardList size={26} />}
+          tone="red"
+          label="Total Orders"
+          value={current.orders}
+          delta={percentChange(current.orders, previous.orders)}
+          sub={vs}
+        />
+        <StatCard
+          icon={<CircleDollarSign size={28} />}
+          tone="green"
+          label="Money Made"
+          value={money(current.revenue)}
+          delta={percentChange(current.revenue, previous.revenue)}
+          sub={vs}
+        />
+        <StatCard
+          icon={<UsersRound size={26} />}
+          tone="blue"
+          label="Avg. Order Value"
+          value={money(current.avg)}
+          delta={percentChange(current.avg, previous.avg)}
+          sub={vs}
+        />
+        <StatCard
+          icon={<Star size={26} fill="currentColor" />}
+          tone="purple"
+          label="Most Popular Item"
+          value={<span className="text-[22px]">{popular ? popular.name : '—'}</span>}
+          sub={popular ? `${popular.orders} order${popular.orders === 1 ? '' : 's'}` : 'No orders yet'}
+        />
+      </div>
 
-      <div className="flex min-h-[250px] flex-col justify-between p-5">
+      {/* Chart */}
+      <Card className="p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <CardTitle
+            icon={<ChartNoAxesCombined size={26} />}
+            title="Sales & Orders Overview"
+            subtitle={isToday ? "Today's performance compared to the previous day." : "Yesterday's performance compared to the day before."}
+          />
 
-        {/* Top */}
-        <div className="flex items-start justify-between">
-
-          <div>
-            <div className="flex items-center gap-2 text-sm text-cream/45">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-maroon/80">
-                <Icon
-                  size={15}
-                  className="text-cream"
-                />
-              </div>
-
-              {label}
+          <div className="flex items-center gap-3">
+            <div className="flex overflow-hidden rounded-full bg-white/[0.05] p-0.5">
+              {[
+                ['orders', 'Orders'],
+                ['revenue', 'Revenue'],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMetric(key)}
+                  className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+                    metric === key ? 'bg-[#d9151f] text-white' : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <p className="mt-4 font-display text-3xl font-semibold tracking-tight text-cream">
-              {value}
-            </p>
+            <Dropdown
+              value={range}
+              onChange={setRange}
+              options={[
+                { value: 'today', label: 'Today' },
+                { value: 'yesterday', label: 'Yesterday' },
+              ]}
+              className="w-[130px]"
+            />
+          </div>
+        </div>
 
-            <div className="mt-2 flex items-center gap-2">
+        <div className="mt-4">
+          <SalesChart
+            current={data.hourly.current}
+            previous={data.hourly.previous}
+            metric={metric}
+            isToday={isToday}
+            nowHour={data.nowHour}
+            currentLabel={isToday ? 'Today' : 'Yesterday'}
+            previousLabel={isToday ? 'Yesterday' : 'Day before'}
+          />
+        </div>
+      </Card>
 
-              <span
-                className={`flex items-center gap-1 text-xs font-medium ${
-                  positive
-                    ? 'text-emerald-400'
-                    : 'text-red-400'
-                }`}
-              >
-                {positive ? (
-                  <ArrowUpRight size={13} />
-                ) : (
-                  <ArrowDownRight size={13} />
+      {/* Bottom row */}
+      <div className="grid gap-4 xl:grid-cols-[1.9fr_1fr_0.95fr]">
+        <Card className="p-6">
+          <CardTitle
+            icon={<List size={24} />}
+            title="Recent Orders"
+            action={
+              <Link to="/admin/orders" className="text-sm font-medium text-[#f0222c] hover:text-[#ff5a63]">
+                View all →
+              </Link>
+            }
+          />
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead>
+                <tr className="text-[13px] text-white/50">
+                  {['#', 'Table', 'Items', 'Total', 'Time', 'Status'].map((h) => (
+                    <th key={h} className="pb-3 pr-3 font-normal">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recent.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-white/40">No orders yet.</td>
+                  </tr>
                 )}
-
-                {change}
-              </span>
-
-              <span className="text-xs text-cream/25">
-                vs yesterday
-              </span>
-
-            </div>
+                {recent.map((order) => (
+                  <tr key={order.id} className="border-t border-white/[0.06] text-white/90">
+                    <td className="py-3 pr-3 font-medium">#{order.id}</td>
+                    <td className="py-3 pr-3 text-white/70">
+                      {order.tableId === 'home' ? 'To Home' : `Table ${order.tableId}`}
+                    </td>
+                    <td className="max-w-[170px] truncate py-3 pr-3 text-white/80">{itemsSummary(order)}</td>
+                    <td className="py-3 pr-3">{money(order.total)}</td>
+                    <td className="py-3 pr-3 text-white/70">{clockTime(order.createdAt)}</td>
+                    <td className="py-3"><StatusBadge status={order.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </Card>
 
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-cream/20">
-            <TrendingUp size={12} />
-            Live
+        <Card className="p-6">
+          <CardTitle icon={<ChartNoAxesCombined size={24} />} title="Quick Stats" />
+
+          <div className="mt-6 space-y-5">
+            <QuickRow
+              icon={<Armchair size={20} />}
+              tint="bg-[#3a0d12] text-[#ff4650]"
+              label="Active Tables"
+              value={`${quick.activeTables} / ${quick.totalTables}`}
+              pct={quick.totalTables ? (quick.activeTables / quick.totalTables) * 100 : 0}
+              bar="bg-[#f0222c]"
+            />
+            <QuickRow
+              icon={<Hourglass size={20} />}
+              tint="bg-[#3b2a0e] text-amber-400"
+              label="Pending Orders"
+              value={quick.pending}
+              pct={(quick.pending / totalForBars) * 100}
+              bar="bg-amber-500"
+            />
+            <QuickRow
+              icon={<ClipboardCheck size={20} />}
+              tint="bg-[#0d3324] text-emerald-400"
+              label="Completed Today"
+              value={quick.completed}
+              pct={(quick.completed / totalForBars) * 100}
+              bar="bg-emerald-500"
+            />
+            <QuickRow
+              icon={<XCircle size={20} />}
+              tint="bg-[#3a0d12] text-[#ff4650]"
+              label="Cancelled Orders"
+              value={quick.cancelled}
+              pct={(quick.cancelled / totalForBars) * 100}
+              bar="bg-[#f0222c]"
+            />
           </div>
+        </Card>
 
-        </div>
-
-        {/* Chart */}
-        <MiniChart type={chart} />
-
+        <VibesCard className="min-h-[300px]" />
       </div>
-    </div>
+    </>
   )
 }
 
-
-/* -------------------------------------------------------------------------- */
-/* MINI CHART                                                                 */
-/* -------------------------------------------------------------------------- */
-
-function MiniChart({ type }) {
-  const earningsPoints =
-    '0,105 35,96 70,110 105,82 140,90 175,62 210,70 245,46 280,57 315,34 350,42 385,20'
-
-  const orderPoints =
-    '0,115 35,108 70,112 105,94 140,101 175,75 210,84 245,62 280,69 315,45 350,53 385,30'
-
-  const points =
-    type === 'earnings'
-      ? earningsPoints
-      : orderPoints
-
+function QuickRow({ icon, tint, label, value, pct, bar }) {
   return (
-    <div className="relative mt-6 h-[105px] overflow-hidden">
-
-      {/* Horizontal grid */}
-      <div className="absolute inset-x-0 top-0 border-t border-line/60" />
-      <div className="absolute inset-x-0 top-1/4 border-t border-line/40" />
-      <div className="absolute inset-x-0 top-1/2 border-t border-line/40" />
-      <div className="absolute inset-x-0 top-3/4 border-t border-line/40" />
-      <div className="absolute inset-x-0 bottom-0 border-t border-line/60" />
-
-      {/* Gradient area */}
-      <svg
-        viewBox="0 0 385 125"
-        preserveAspectRatio="none"
-        className="absolute inset-0 h-full w-full"
-      >
-        <defs>
-          <linearGradient
-            id={`gradient-${type}`}
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="1"
-          >
-            <stop
-              offset="0%"
-              stopColor="#E50914"
-              stopOpacity="0.28"
-            />
-
-            <stop
-              offset="100%"
-              stopColor="#E50914"
-              stopOpacity="0"
-            />
-          </linearGradient>
-        </defs>
-
-        <polygon
-          points={`${points} 385,125 0,125`}
-          fill={`url(#gradient-${type})`}
-        />
-
-        {/* Main line */}
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#E50914"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* End point */}
-        <circle
-          cx="385"
-          cy={type === 'earnings' ? '20' : '30'}
-          r="4"
-          fill="#E50914"
-        />
-
-        <circle
-          cx="385"
-          cy={type === 'earnings' ? '20' : '30'}
-          r="8"
-          fill="#E50914"
-          opacity="0.15"
-        />
-      </svg>
-
-      {/* Time labels */}
-      <div className="absolute inset-x-0 bottom-0 flex justify-between pt-2 text-[9px] text-cream/20">
-        <span>08:00</span>
-        <span>10:00</span>
-        <span>12:00</span>
-        <span>14:00</span>
-        <span>16:00</span>
-        <span>18:00</span>
-        <span>20:00</span>
-      </div>
-
-    </div>
-  )
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* FULL ACTIVITY CHART                                                        */
-/* -------------------------------------------------------------------------- */
-
-function ActivityChart() {
-  const points =
-    '0,180 45,164 90,172 135,142 180,151 225,119 270,132 315,92 360,104 405,67 450,82 495,50 540,62 585,32 630,44 675,18'
-
-  return (
-    <div className="mt-8">
-
-      <div className="relative h-[280px] w-full">
-
-        {/* Y-axis labels */}
-        <div className="absolute left-0 top-0 flex h-full flex-col justify-between pb-7 text-[10px] text-cream/20">
-          <span>High</span>
-          <span>75%</span>
-          <span>50%</span>
-          <span>25%</span>
-          <span>Low</span>
+    <div className="flex items-center gap-4">
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tint}`}>{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-white/85">{label}</span>
+          <span className="font-semibold text-white">{value}</span>
         </div>
-
-        {/* Chart area */}
-        <div className="absolute inset-y-0 left-10 right-0">
-
-          {/* Grid */}
-          <div className="absolute inset-x-0 top-0 border-t border-line/60" />
-          <div className="absolute inset-x-0 top-1/4 border-t border-line/40" />
-          <div className="absolute inset-x-0 top-1/2 border-t border-line/40" />
-          <div className="absolute inset-x-0 top-3/4 border-t border-line/40" />
-          <div className="absolute inset-x-0 bottom-7 border-t border-line/60" />
-
-          {/* Vertical guides */}
-          <div className="absolute inset-y-0 left-1/6 border-l border-line/20" />
-          <div className="absolute inset-y-0 left-2/6 border-l border-line/20" />
-          <div className="absolute inset-y-0 left-3/6 border-l border-line/20" />
-          <div className="absolute inset-y-0 left-4/6 border-l border-line/20" />
-          <div className="absolute inset-y-0 left-5/6 border-l border-line/20" />
-
-          <svg
-            viewBox="0 0 675 210"
-            preserveAspectRatio="none"
-            className="absolute inset-x-0 top-0 h-[calc(100%-28px)] w-full"
-          >
-            <defs>
-              <linearGradient
-                id="activity-fill"
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop
-                  offset="0%"
-                  stopColor="#E50914"
-                  stopOpacity="0.22"
-                />
-
-                <stop
-                  offset="100%"
-                  stopColor="#E50914"
-                  stopOpacity="0"
-                />
-              </linearGradient>
-            </defs>
-
-            <polygon
-              points={`${points} 675,210 0,210`}
-              fill="url(#activity-fill)"
-            />
-
-            <polyline
-              points={points}
-              fill="none"
-              stroke="#E50914"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-
-            <circle
-              cx="675"
-              cy="18"
-              r="4"
-              fill="#E50914"
-            />
-
-            <circle
-              cx="675"
-              cy="18"
-              r="9"
-              fill="#E50914"
-              opacity="0.12"
-            />
-          </svg>
-
-          {/* X-axis */}
-          <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-cream/20">
-            <span>08:00</span>
-            <span>10:00</span>
-            <span>12:00</span>
-            <span>14:00</span>
-            <span>16:00</span>
-            <span>18:00</span>
-            <span>20:00</span>
-            <span>22:00</span>
-          </div>
-
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+          <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, Math.max(pct, value ? 4 : 0))}%` }} />
         </div>
-      </div>
-
-      {/* Legend */}
-      <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
-
-        <div className="flex items-center gap-2 text-xs text-cream/35">
-          <span className="h-2 w-2 rounded-full bg-maroon-bright" />
-          Restaurant activity
-        </div>
-
-        <p className="text-xs text-cream/20">
-          Updated automatically
-        </p>
-
       </div>
     </div>
   )
-}
-
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString('fr-DZ')
 }

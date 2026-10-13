@@ -26,8 +26,15 @@ export default function FadeImage({
     }
   }, [src])
 
+  // BUG FIX: this wrapper used to ALWAYS add the "relative" class. When a
+  // caller passed "absolute inset-0" (the menu cards do), "relative" won the
+  // CSS fight, the wrapper collapsed to zero height, and the picture was
+  // there but invisible. Only add "relative" when the caller didn't choose
+  // a position themselves.
+  const positioned = /(^|\s)(absolute|fixed|relative|sticky)(\s|$)/.test(className)
+
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div className={`${positioned ? '' : 'relative'} overflow-hidden ${className}`}>
       {/* Placeholder */}
       <div
         className={`absolute inset-0 bg-white/[0.06] transition-opacity duration-500 ${

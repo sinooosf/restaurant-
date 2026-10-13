@@ -1,500 +1,274 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Bot,
-  Check,
-  MessageCircle,
-  Plus,
-  Save,
-  Search,
+  CheckCheck,
+  ChevronRight,
+  CircleHelp,
+  ClipboardList,
+  Lightbulb,
+  Armchair,
+  Send,
   Sparkles,
-  Trash2,
-  X,
+  Zap,
+  ChefHat,
+  Bot,
 } from 'lucide-react'
 import { useAdminAuth } from '../AdminAuthContext'
-import {
-  adminFetchFaqs,
-  adminCreateFaq,
-  adminUpdateFaq,
-  adminDeleteFaq,
-} from '../../services/api'
+import { Card, CardTitle, PageTop } from '../components/ui'
+import { QUICK_PROMPTS, answer } from '../assistant'
+
+const AVATAR = '/bot.png'
+
+const nowTime = () =>
+  new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+
+const DOTS = {
+  preparing: 'bg-orange-500',
+  almost: 'bg-blue-500',
+  ready: 'bg-violet-500',
+  completed: 'bg-zinc-400',
+  cancelled: 'bg-red-600',
+  occupied: 'bg-[#f0222c]',
+  available: 'bg-emerald-500',
+  cleaning: 'bg-amber-500',
+  neutral: 'bg-white/40',
+}
+
+const QUICK_ACTIONS = [
+  { icon: ClipboardList, title: 'Check current orders', sub: 'See active and pending orders', prompt: QUICK_PROMPTS.orders },
+  { icon: ChefHat, title: 'Popular items', sub: 'View best selling dishes', prompt: QUICK_PROMPTS.popular },
+  { icon: Armchair, title: 'Table status', sub: 'Check table occupancy', prompt: QUICK_PROMPTS.tables },
+  { icon: CircleHelp, title: 'Help & FAQ', sub: 'Common questions and answers', prompt: QUICK_PROMPTS.help },
+]
+
+const SUGGESTIONS = [
+  "Show today's best sellers",
+  'Get table status',
+  'How much did we make today?',
+  'Add a new menu item',
+]
 
 export default function AdminChatbot() {
   const { password } = useAdminAuth()
+  const navigate = useNavigate()
 
-  const [faqs, setFaqs] = useState([])
-  const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
-  const [showAdd, setShowAdd] = useState(false)
-  const [savingId, setSavingId] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
-
-  const [newFaq, setNewFaq] = useState({
-    keyword: '',
-    answer: '',
-  })
-
-  async function refresh() {
-    try {
-      setError('')
-      const data = await adminFetchFaqs(password)
-      setFaqs(data)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
+  const [messages, setMessages] = useState([
+    { id: 1, from: 'bot', time: nowTime(), text: "Hello! 👋 I'm ChefBot, your restaurant assistant.\nHow can I help you today?" },
+  ])
+  const [draft, setDraft] = useState('')
+  const [thinking, setThinking] = useState(false)
+  const scroller = useRef(null)
+  const nextId = useRef(2)
 
   useEffect(() => {
-    refresh()
-  }, [password])
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, thinking])
 
-  function handleFieldChange(id, field, value) {
-    setFaqs((prev) =>
-      prev.map((faq) =>
-        faq.id === id ? { ...faq, [field]: value } : faq
-      )
-    )
-  }
+  async function send(raw) {
+    const text = raw.trim()
+    if (!text || thinking) return
 
-  async function handleSave(faq) {
+    setDraft('')
+    setMessages((m) => [...m, { id: nextId.current++, from: 'user', text, time: nowTime() }])
+    setThinking(true)
+
+    let reply
     try {
-      setSavingId(faq.id)
-      setError('')
-
-      await adminUpdateFaq(password, faq.id, {
-        keyword: faq.keyword,
-        answer: faq.answer,
-      })
+      reply = await answer(text, password)
     } catch (err) {
-      setError(err.message)
-    } finally {
-      setSavingId(null)
+      reply = { text: `Sorry, I couldn't reach the restaurant data (${err.message}).` }
     }
+
+    setMessages((m) => [...m, { id: nextId.current++, from: 'bot', time: nowTime(), ...reply }])
+    setThinking(false)
   }
-
-  async function handleDelete(id) {
-    if (!window.confirm('Delete this chatbot question?')) return
-
-    try {
-      setDeletingId(id)
-      setError('')
-
-      await adminDeleteFaq(password, id)
-
-      setFaqs((prev) => prev.filter((faq) => faq.id !== id))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  async function handleAdd(event) {
-    event.preventDefault()
-
-    if (!newFaq.keyword.trim() || !newFaq.answer.trim()) return
-
-    try {
-      setError('')
-
-      const created = await adminCreateFaq(password, {
-        keyword: newFaq.keyword.trim(),
-        answer: newFaq.answer.trim(),
-      })
-
-      setFaqs((prev) => [...prev, created])
-
-      setNewFaq({
-        keyword: '',
-        answer: '',
-      })
-
-      setShowAdd(false)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  const filteredFaqs = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    if (!query) return faqs
-
-    return faqs.filter(
-      (faq) =>
-        faq.keyword.toLowerCase().includes(query) ||
-        faq.answer.toLowerCase().includes(query)
-    )
-  }, [faqs, search])
 
   return (
-    <div className="pb-10">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-maroon-bright">
-            <Bot size={14} />
-            Restaurant assistant
-          </div>
+    <div className="space-y-6">
+      <PageTop
+        icon={
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#d9151f] text-white">
+            <Bot size={28} />
+          </span>
+        }
+        title="AI Assistant"
+        subtitle="Your smart assistant for a smoother restaurant experience."
+      />
 
-          <h1 className="font-display text-3xl text-cream">
-            Chatbot
-          </h1>
-
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-cream/45">
-            Manage the questions your restaurant chatbot understands and
-            the answers it sends to customers.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowAdd((prev) => !prev)}
-          className="flex items-center justify-center gap-2 rounded-xl bg-maroon px-4 py-2.5 text-sm font-semibold text-cream transition hover:bg-maroon-bright"
-        >
-          {showAdd ? <X size={17} /> : <Plus size={17} />}
-          {showAdd ? 'Close' : 'Add question'}
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <StatCard
-          icon={<MessageCircle size={18} />}
-          label="Questions"
-          value={faqs.length}
-        />
-
-        <StatCard
-          icon={<Sparkles size={18} />}
-          label="Active answers"
-          value={faqs.length}
-        />
-
-        <div className="col-span-2 flex items-center gap-3 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3 lg:col-span-1">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-            <Check size={17} />
-          </div>
-
-          <div>
-            <p className="text-xs text-cream/40">Chatbot status</p>
-            <p className="mt-0.5 text-sm font-semibold text-emerald-400">
-              Online
-            </p>
-          </div>
-
-          <span className="ml-auto h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)]" />
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3">
-          <p className="text-sm text-red-300">{error}</p>
-
-          <button
-            type="button"
-            onClick={() => setError('')}
-            className="text-red-300/60 transition hover:text-red-300"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* Add question */}
-      {showAdd && (
-        <section className="mt-6 overflow-hidden rounded-3xl border border-line bg-panel">
-          <div className="border-b border-line px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-maroon/15 text-maroon-bright">
-                <Plus size={18} />
-              </div>
-
+      <div className="grid gap-4 xl:grid-cols-[1fr_370px]">
+        {/* Chat */}
+        <Card className="flex h-[calc(100dvh-190px)] min-h-[520px] flex-col overflow-hidden">
+          <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
+            <div className="flex items-center gap-4">
+              <img src={AVATAR} alt="" className="h-14 w-14 rounded-full bg-white object-contain" />
               <div>
-                <h2 className="text-sm font-semibold text-cream">
-                  Add chatbot question
-                </h2>
-                <p className="mt-0.5 text-xs text-cream/40">
-                  Create a keyword and the response customers should receive.
+                <p className="text-xl font-semibold text-white">ChefBot</p>
+                <p className="flex items-center gap-1.5 text-xs text-white/65">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> Online
                 </p>
               </div>
             </div>
+            <span className="hidden items-center gap-2 rounded-full bg-white/[0.05] px-4 py-2 text-xs text-white/85 sm:flex">
+              <Sparkles size={14} className="text-[#f0222c]" /> Always here to help
+            </span>
           </div>
 
-          <form onSubmit={handleAdd} className="p-5">
-            <div className="grid gap-4 lg:grid-cols-[220px_1fr_auto] lg:items-end">
-              <Field label="Keyword">
-                <input
-                  required
-                  value={newFaq.keyword}
-                  onChange={(e) =>
-                    setNewFaq({
-                      ...newFaq,
-                      keyword: e.target.value,
-                    })
-                  }
-                  placeholder="wifi"
-                  className="input"
-                />
-              </Field>
+          <div ref={scroller} className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+            {messages.map((m) => (
+              <Bubble key={m.id} message={m} onNavigate={navigate} />
+            ))}
 
-              <Field label="Chatbot answer">
-                <input
-                  required
-                  value={newFaq.answer}
-                  onChange={(e) =>
-                    setNewFaq({
-                      ...newFaq,
-                      answer: e.target.value,
-                    })
-                  }
-                  placeholder="Yes, we have free Wi-Fi."
-                  className="input"
-                />
-              </Field>
+            {thinking && (
+              <div className="flex items-end gap-3">
+                <img src={AVATAR} alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain" />
+                <div className="flex gap-1.5 rounded-2xl bg-[#1a1a1e] px-5 py-4">
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className="h-2 w-2 animate-bounce rounded-full bg-white/50" style={{ animationDelay: `${i * 0.15}s` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-              <button
-                type="submit"
-                className="flex h-10 items-center justify-center gap-2 rounded-xl bg-maroon px-5 text-sm font-semibold text-cream transition hover:bg-maroon-bright"
-              >
-                <Plus size={16} />
-                Add question
-              </button>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              send(draft)
+            }}
+            className="flex items-center gap-3 border-t border-white/[0.07] px-5 py-4"
+          >
+            <div className="relative flex-1">
+              <Sparkles size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Type your message..."
+                className="h-12 w-full rounded-full border border-white/[0.09] bg-[#121215] pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#f0222c]/60"
+              />
             </div>
-
-            <p className="mt-3 text-xs text-cream/30">
-              Matching is not case-sensitive. Keep keywords short and
-              specific.
-            </p>
+            <button
+              type="submit"
+              disabled={!draft.trim() || thinking}
+              aria-label="Send"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-[#d9151f] text-white shadow-[0_6px_20px_rgba(217,21,31,0.4)] transition hover:bg-[#f0222c] disabled:opacity-50"
+            >
+              <Send size={18} />
+            </button>
           </form>
-        </section>
-      )}
+        </Card>
 
-      {/* Search */}
-      <div className="sticky top-0 z-20 mt-6 border-y border-line bg-ink/90 py-3 backdrop-blur-xl">
-        <div className="relative">
-          <Search
-            size={17}
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cream/30"
-          />
+        {/* Side panels */}
+        <div className="space-y-4">
+          <Card className="p-5">
+            <CardTitle icon={<Zap size={24} fill="currentColor" />} title="Quick Actions" />
+            <div className="mt-4 space-y-3">
+              {QUICK_ACTIONS.map(({ icon: Icon, title, sub, prompt }) => (
+                <button
+                  key={title}
+                  type="button"
+                  onClick={() => send(prompt)}
+                  className="flex w-full items-center gap-4 rounded-xl bg-white/[0.04] px-4 py-3.5 text-left transition hover:bg-white/[0.08]"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#5a0b10] text-[#ff4650]">
+                    <Icon size={20} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-white">{title}</span>
+                    <span className="block text-xs text-white/50">{sub}</span>
+                  </span>
+                  <ChevronRight size={16} className="text-white/60" />
+                </button>
+              ))}
+            </div>
+          </Card>
 
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search questions or answers..."
-            className="w-full rounded-xl border border-line bg-panel py-2.5 pl-10 pr-4 text-sm text-cream outline-none transition placeholder:text-cream/25 focus:border-maroon-bright/60"
-          />
+          <Card className="flex items-center gap-4 p-5">
+            <img src={AVATAR} alt="" className="h-16 w-16 shrink-0 rounded-full bg-white object-contain" />
+            <div>
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-semibold text-white">Chatbot Status</p>
+                <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-white/50">
+                ChefBot is ready to assist you with orders, menu, tables and more.
+              </p>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <CardTitle icon={<Lightbulb size={22} />} title="Recent Suggestions" />
+            <div className="mt-4 space-y-2.5">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => send(s)}
+                  className="flex w-full items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3 text-left text-sm text-white/90 transition hover:bg-white/[0.08]"
+                >
+                  {s}
+                  <ChevronRight size={15} className="text-white/55" />
+                </button>
+              ))}
+            </div>
+          </Card>
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* FAQ list */}
-      <section className="mt-5">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-cream">
-              Knowledge base
-            </h2>
-            <p className="mt-0.5 text-xs text-cream/35">
-              {filteredFaqs.length} of {faqs.length} questions
-            </p>
-          </div>
+function Bubble({ message, onNavigate }) {
+  if (message.from === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[78%] rounded-2xl rounded-br-sm bg-[#c4121c] px-5 py-3 text-sm text-white">
+          <p>{message.text}</p>
+          <p className="mt-1 flex items-center justify-end gap-1 text-[11px] text-white/70">
+            {message.time} <CheckCheck size={13} />
+          </p>
         </div>
+      </div>
+    )
+  }
 
-        {filteredFaqs.length === 0 ? (
-          <EmptyState
-            hasSearch={Boolean(search)}
-            onAdd={() => {
-              setSearch('')
-              setShowAdd(true)
-            }}
-          />
-        ) : (
-          <div className="space-y-3">
-            {filteredFaqs.map((faq) => (
-              <FaqCard
-                key={faq.id}
-                faq={faq}
-                saving={savingId === faq.id}
-                deleting={deletingId === faq.id}
-                onChange={handleFieldChange}
-                onSave={handleSave}
-                onDelete={handleDelete}
-              />
+  return (
+    <div className="flex items-end gap-3">
+      <img src={AVATAR} alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain" />
+      <div className="max-w-[78%] rounded-2xl rounded-bl-sm bg-[#1a1a1e] px-5 py-3.5 text-sm text-white/95">
+        <p className="whitespace-pre-line leading-relaxed">{message.text}</p>
+
+        {message.bullets?.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {message.bullets.map((b, i) => (
+              <li key={i} className="flex items-center gap-2.5 text-white/90">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOTS[b.tone] || DOTS.neutral}`} />
+                {b.label}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {message.footer && <p className="mt-3 font-semibold text-white">{message.footer}</p>}
+
+        {message.actions?.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {message.actions.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                onClick={() => onNavigate(a.to)}
+                className="rounded-full border border-[#d9151f]/60 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-[#d9151f]/20"
+              >
+                {a.label} →
+              </button>
             ))}
           </div>
         )}
-      </section>
-    </div>
-  )
-}
 
-/* ---------------------------------- */
-/* Components                          */
-/* ---------------------------------- */
-
-function StatCard({ icon, label, value }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-maroon/10 text-maroon-bright">
-        {icon}
+        <p className="mt-1.5 text-right text-[11px] text-white/40">{message.time}</p>
       </div>
-
-      <div>
-        <p className="text-xs text-cream/40">{label}</p>
-        <p className="mt-0.5 text-lg font-semibold text-cream">{value}</p>
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-cream/50">
-        {label}
-      </span>
-
-      {children}
-    </label>
-  )
-}
-
-function FaqCard({
-  faq,
-  saving,
-  deleting,
-  onChange,
-  onSave,
-  onDelete,
-}) {
-  return (
-    <div className="group overflow-hidden rounded-2xl border border-line bg-panel transition hover:border-cream/10">
-      <div className="grid gap-4 p-4 lg:grid-cols-[210px_1fr_auto] lg:items-start">
-        {/* Keyword */}
-        <div>
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-cream/30">
-              Keyword
-            </span>
-
-            <span className="rounded-md bg-maroon/10 px-1.5 py-0.5 text-[10px] font-medium text-maroon-bright">
-              trigger
-            </span>
-          </div>
-
-          <input
-            value={faq.keyword}
-            onChange={(e) =>
-              onChange(faq.id, 'keyword', e.target.value)
-            }
-            className="w-full rounded-xl border border-line bg-panel-light px-3 py-2.5 text-sm font-medium text-cream outline-none transition placeholder:text-cream/25 focus:border-maroon-bright/60"
-          />
-        </div>
-
-        {/* Answer */}
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-cream/30">
-              Chatbot response
-            </span>
-
-            <span className="text-[10px] text-cream/25">
-              {faq.answer.length} characters
-            </span>
-          </div>
-
-          <textarea
-            value={faq.answer}
-            onChange={(e) =>
-              onChange(faq.id, 'answer', e.target.value)
-            }
-            rows={2}
-            className="w-full resize-none rounded-xl border border-line bg-panel-light px-3 py-2.5 text-sm leading-6 text-cream outline-none transition placeholder:text-cream/25 focus:border-maroon-bright/60"
-          />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 lg:pt-6">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onSave(faq)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-maroon px-3 py-2.5 text-xs font-semibold text-cream transition hover:bg-maroon-bright disabled:cursor-not-allowed disabled:opacity-50 lg:flex-none"
-          >
-            {saving ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cream/30 border-t-cream" />
-            ) : (
-              <Save size={14} />
-            )}
-
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-
-          <button
-            type="button"
-            disabled={deleting}
-            onClick={() => onDelete(faq.id)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-line text-cream/35 transition hover:border-red-500/20 hover:bg-red-500/5 hover:text-red-400 disabled:opacity-50"
-            aria-label="Delete question"
-          >
-            {deleting ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cream/20 border-t-red-400" />
-            ) : (
-              <Trash2 size={15} />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Preview */}
-      <div className="border-t border-line bg-black/10 px-4 py-3">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-maroon/15 text-maroon-bright">
-            <Bot size={12} />
-          </div>
-
-          <div className="min-w-0">
-            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-cream/25">
-              Customer sees
-            </p>
-
-            <p className="truncate text-xs leading-5 text-cream/50">
-              {faq.answer || 'No answer configured'}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function EmptyState({ hasSearch, onAdd }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-panel/50 px-6 py-16 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-maroon/10 text-maroon-bright">
-        <Bot size={25} />
-      </div>
-
-      <h3 className="mt-4 text-sm font-semibold text-cream">
-        {hasSearch ? 'No questions found' : 'Your chatbot is empty'}
-      </h3>
-
-      <p className="mt-1 max-w-sm text-xs leading-5 text-cream/35">
-        {hasSearch
-          ? 'Try a different keyword or search term.'
-          : 'Add common restaurant questions so customers can get instant answers.'}
-      </p>
-
-      {!hasSearch && (
-        <button
-          type="button"
-          onClick={onAdd}
-          className="mt-5 flex items-center gap-2 rounded-xl bg-maroon px-4 py-2.5 text-xs font-semibold text-cream transition hover:bg-maroon-bright"
-        >
-          <Plus size={14} />
-          Add first question
-        </button>
-      )}
     </div>
   )
 }

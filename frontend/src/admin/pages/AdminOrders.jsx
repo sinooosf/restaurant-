@@ -1,763 +1,467 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
-  Ban,
   Check,
+  ChevronLeft,
   ChevronRight,
-  Clock3,
-  PackageCheck,
-  RefreshCw,
-  Utensils,
-  Volume2,
-  VolumeX,
+  CircleDollarSign,
+  ClipboardList,
+  EllipsisVertical,
+  Funnel,
+  List,
+  LifeBuoy,
+  Search,
+  Star,
+  UsersRound,
+  Zap,
+  ChefHat,
 } from 'lucide-react'
 import { useAdminAuth } from '../AdminAuthContext'
+import { useAdminShell } from '../AdminShellContext'
 import {
   adminFetchOrders,
+  adminFetchOverview,
   adminUpdateOrderStatus,
 } from '../../services/api'
+import {
+  Card,
+  CardTitle,
+  Dropdown,
+  ErrorBanner,
+  Modal,
+  PageTop,
+  PrimaryButton,
+  GhostButton,
+  Spinner,
+  StatCard,
+  StatusBadge,
+  TablePill,
+  useClickOutside,
+} from '../components/ui'
+import {
+  NEXT_STATUS,
+  STATUS_META,
+  clockTime,
+  itemsSummary,
+  money,
+  orderTableLabel,
+  percentChange,
+} from '../components/format'
 
-const NEXT_STATUS = {
-  preparing: 'almost',
-  almost: 'ready',
-}
+const PAGE_SIZE = 10
+const POLL_MS = 5000
 
-const STATUS_LABEL = {
-  preparing: 'Preparing',
-  almost: 'Almost done',
-  ready: 'Ready',
-  cancelled: 'Cancelled',
-}
-
-const STATUS_COLOR = {
-  preparing: {
-    badge: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
-    dot: 'bg-amber-400',
-  },
-  almost: {
-    badge: 'bg-sky-500/10 text-sky-300 border-sky-500/20',
-    dot: 'bg-sky-400',
-  },
-  ready: {
-    badge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-    dot: 'bg-emerald-400',
-  },
-  cancelled: {
-    badge: 'bg-white/5 text-white/35 border-white/10',
-    dot: 'bg-white/30',
-  },
-}
-
-const REFRESH_MS = 3000
-
-/* -------------------------------------------------------------------------- */
-/* SOUND                                                                      */
-/* -------------------------------------------------------------------------- */
-
-let audioCtx
-
-function getCtx() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-  }
-  if (audioCtx.state === 'suspended') audioCtx.resume()
-  return audioCtx
-}
-
-function playDing() {
-  try {
-    const ctx = getCtx()
-    ;[880, 1175].forEach((freq, i) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      const t = ctx.currentTime + i * 0.18
-
-      osc.type = 'sine'
-      osc.frequency.value = freq
-
-      gain.gain.setValueAtTime(0.0001, t)
-      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35)
-
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(t)
-      osc.stop(t + 0.4)
-    })
-  } catch {
-    // sound is optional, never break the page over it
-  }
-}
+const STATUS_FILTER = [
+  { value: 'all', label: 'All Status' },
+  ...Object.entries(STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
+]
 
 export default function AdminOrders() {
   const { password } = useAdminAuth()
+  const { refreshSummary } = useAdminShell()
 
-  const [orders, setOrders] = useState([])
+  const [range, setRange] = useState('today')
+  const [data, setData] = useState(null)
+  const [overview, setOverview] = useState(null)
   const [error, setError] = useState('')
-  const [refreshing, setRefreshing] = useState(false)
+  // /admin/orders?q=1023 opens the page already searching for that order
+  const [params] = useSearchParams()
+  const [search, setSearch] = useState(params.get('q') || '')
+  const [status, setStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState(null)
+  const [busyId, setBusyId] = useState(null)
 
-  const [soundOn, setSoundOn] = useState(true)
-  const soundOnRef = useRef(true)
-  const totalsRef = useRef(null)
-  const [updatedIds, setUpdatedIds] = useState(() => new Set())
-  const lastJson = useRef('')
-  const [counts, setCounts] = useState(null)
-
-  // Goes up every time staff change an order. A refresh that was already on
-  // its way when that happened carries old data, so it gets thrown away
-  // instead of flipping the order back to its previous status.
-  const mutationRef = useRef(0)
-
-  function toggleSound() {
-    const next = !soundOn
-    setSoundOn(next)
-    soundOnRef.current = next
-    if (next) playDing()
-  }
+  const load = useCallback(async () => {
+    try {
+      const [orders, stats] = await Promise.all([
+        adminFetchOrders(password, range),
+        adminFetchOverview(password, range),
+      ])
+      setData(orders)
+      setOverview(stats)
+      setError('')
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [password, range])
 
   useEffect(() => {
-    let cancelled = false
-    let timer
+    setData(null)
+    load()
+    const timer = setInterval(load, POLL_MS)
+    return () => clearInterval(timer)
+  }, [load])
 
-    // Browsers block sound until the user clicks the page once.
-    const unlock = () => getCtx()
-    window.addEventListener('click', unlock, { once: true })
-
-    async function refresh() {
-      const startedAt = mutationRef.current
-
-      try {
-        setRefreshing(true)
-
-        const data = await adminFetchOrders(password)
-
-        if (cancelled) return
-
-        // Staff changed an order while this request was loading, so this
-        // answer is already out of date. Skip it; the next refresh is correct.
-        if (mutationRef.current !== startedAt) return
-
-        // Nothing changed since the last refresh: don't redraw the page.
-        const json = JSON.stringify(data)
-        if (json === lastJson.current) {
-          setError('')
-          return
-        }
-        lastJson.current = json
-
-        // The server sends { orders, counts }. (An older server sends just
-        // the list, which still works.)
-        const list = Array.isArray(data) ? data : data.orders
-        const serverCounts = Array.isArray(data) ? null : data.counts
-
-        // Ding when a NEW order shows up, or when a customer ADDS dishes to
-        // an order that is already here (its total goes up). The first load
-        // only records what exists, so it stays silent.
-        const previousTotals = totalsRef.current
-        if (previousTotals) {
-          let shouldDing = false
-          const addedTo = []
-
-          for (const o of list) {
-            if (!previousTotals.has(o.id)) {
-              shouldDing = true
-            } else if (o.total > previousTotals.get(o.id)) {
-              shouldDing = true
-              addedTo.push(o.id)
-            }
-          }
-
-          if (addedTo.length > 0) {
-            setUpdatedIds((prev) => {
-              const next = new Set(prev)
-              addedTo.forEach((id) => next.add(id))
-              return next
-            })
-          }
-
-          if (shouldDing && soundOnRef.current) playDing()
-        }
-        totalsRef.current = new Map(list.map((o) => [o.id, o.total]))
-
-        setOrders(list)
-        setCounts(serverCounts)
-        setError('')
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message)
-        }
-      } finally {
-        if (!cancelled) {
-          setRefreshing(false)
-        }
-      }
-    }
-
-    // Wait for one refresh to finish BEFORE scheduling the next one, so slow
-    // answers can never pile up or arrive out of order.
-    async function tick() {
-      await refresh()
-      if (!cancelled) timer = setTimeout(tick, REFRESH_MS)
-    }
-
-    tick()
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      window.removeEventListener('click', unlock)
-    }
-  }, [password])
-
-  async function changeStatus(order, status) {
-    mutationRef.current += 1 // discard refreshes that started before this click
-
+  async function changeStatus(order, next) {
+    setBusyId(order.id)
     try {
-      const updated = await adminUpdateOrderStatus(
-        password,
-        order.id,
-        status
-      )
-
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? updated : o
-        )
-      )
-
-      setUpdatedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(order.id)
-        return next
-      })
+      const updated = await adminUpdateOrderStatus(password, order.id, next)
+      setSelected((current) => (current && current.id === updated.id ? updated : current))
+      await Promise.all([load(), refreshSummary()])
     } catch (err) {
       setError(err.message)
     } finally {
-      mutationRef.current += 1 // and those that started while we were saving
+      setBusyId(null)
     }
   }
 
-  function advance(order) {
-    const next = NEXT_STATUS[order.status]
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase().replace(/^#/, '')
+    return (data?.orders || []).filter((order) => {
+      if (status !== 'all' && order.status !== status) return false
+      if (!term) return true
+      return (
+        String(order.id).includes(term) ||
+        orderTableLabel(order).toLowerCase().includes(term) ||
+        order.items.some((item) => item.name.toLowerCase().includes(term))
+      )
+    })
+  }, [data, search, status])
 
-    if (!next) return
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount)
+  const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
-    return changeStatus(order, next)
-  }
+  useEffect(() => setPage(1), [search, status, range])
 
-  function cancelOrder(order) {
-    return changeStatus(order, 'cancelled')
-  }
-
-  const stats = useMemo(() => {
-    if (counts) {
-      return {
-        active: counts.preparing + counts.almost,
-        preparing: counts.preparing,
-        almost: counts.almost,
-        ready: counts.ready,
-      }
-    }
-
-    return {
-      active: orders.filter(
-        (order) =>
-          order.status === 'preparing' ||
-          order.status === 'almost'
-      ).length,
-
-      preparing: orders.filter(
-        (order) => order.status === 'preparing'
-      ).length,
-
-      almost: orders.filter(
-        (order) => order.status === 'almost'
-      ).length,
-
-      ready: orders.filter(
-        (order) => order.status === 'ready'
-      ).length,
-    }
-  }, [orders, counts])
-
-  const completedTotal = counts
-    ? counts.ready + counts.cancelled
-    : orders.filter(
-        (order) =>
-          order.status === 'ready' ||
-          order.status === 'cancelled'
-      ).length
-
-  const activeOrders = orders.filter(
-    (order) =>
-      order.status === 'preparing' ||
-      order.status === 'almost'
-  )
-
-  const completedOrders = orders.filter(
-    (order) =>
-      order.status === 'ready' ||
-      order.status === 'cancelled'
-  )
+  const isToday = range === 'today'
+  const vs = isToday ? 'vs. yesterday' : 'vs. day before'
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
-      <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-maroon-bright">
-            <Utensils size={13} />
-            Kitchen
-          </div>
-
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-cream">
-            Today's orders
-          </h1>
-
-          <p className="mt-1 text-sm text-cream/40">
-            Manage incoming orders and update their progress.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-
-          <button
-            type="button"
-            onClick={toggleSound}
-            className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-2 text-xs text-cream/60 transition hover:bg-panel-light"
-          >
-            {soundOn ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            Sound {soundOn ? 'on' : 'off'}
-          </button>
-
-          <div className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-2 text-xs text-cream/40">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            </span>
-
-            Live
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-cream/25">
-            <RefreshCw
-              size={13}
-              className={refreshing ? 'animate-spin' : ''}
-            />
-
-            Every 3 sec
-          </div>
-
-        </div>
-      </header>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-
-        <OrderStat
-          label="Active"
-          value={stats.active}
-          active
-        />
-
-        <OrderStat
-          label="Preparing"
-          value={stats.preparing}
-        />
-
-        <OrderStat
-          label="Almost done"
-          value={stats.almost}
-        />
-
-        <OrderStat
-          label="Ready"
-          value={stats.ready}
-        />
-
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="flex items-center justify-between rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3">
-          <p className="text-sm text-red-300">
-            {error}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setError('')}
-            className="text-xs text-red-300/60 hover:text-red-300"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* Active orders */}
-      <section>
-
-        <div className="mb-3 flex items-center justify-between">
-
-          <div>
-            <h2 className="text-sm font-semibold text-cream">
-              Active orders
-            </h2>
-
-            <p className="mt-0.5 text-xs text-cream/30">
-              Orders that still need attention
-            </p>
-          </div>
-
-          <span className="rounded-full border border-line bg-panel px-3 py-1 text-xs text-cream/40">
-            {activeOrders.length}
-          </span>
-
-        </div>
-
-        {activeOrders.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {activeOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                updated={updatedIds.has(order.id)}
-                onAdvance={advance}
-                onCancel={cancelOrder}
-              />
-            ))}
-          </div>
-        )}
-
-      </section>
-
-      {/* Completed */}
-      {completedOrders.length > 0 && (
-        <section className="pt-2">
-
-          <div className="mb-3 flex items-center justify-between">
-
-            <div>
-              <h2 className="text-sm font-semibold text-cream/70">
-                Completed
-              </h2>
-
-              <p className="mt-0.5 text-xs text-cream/25">
-                {completedTotal > completedOrders.length
-                  ? `Latest ${completedOrders.length} of ${completedTotal} ready and cancelled orders`
-                  : 'Ready and cancelled orders'}
-              </p>
-            </div>
-
-            <span className="rounded-full border border-line bg-panel px-3 py-1 text-xs text-cream/30">
-              {completedTotal}
-            </span>
-
-          </div>
-
-          <div className="space-y-2">
-
-            {completedOrders.map((order) => (
-              <CompletedOrder
-                key={order.id}
-                order={order}
-              />
-            ))}
-
-          </div>
-
-        </section>
-      )}
-
-    </div>
-  )
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* ORDER CARD                                                                 */
-/* -------------------------------------------------------------------------- */
-
-function OrderCard({
-  order,
-  updated = false,
-  onAdvance,
-  onCancel,
-}) {
-  const next = NEXT_STATUS[order.status]
-
-  const time = new Date(order.createdAt).toLocaleTimeString(
-    [],
-    {
-      hour: '2-digit',
-      minute: '2-digit',
-    }
-  )
-
-  return (
-    <article className="group relative overflow-hidden rounded-3xl border border-line bg-panel transition duration-300 hover:border-white/15">
-
-      {/* Red active indicator */}
-      <div className="absolute left-0 top-0 h-full w-1 bg-maroon-bright" />
-
-      <div className="p-5">
-
-        {/* Top */}
-        <div className="flex items-start justify-between gap-4">
-
-          <div className="flex items-center gap-4">
-
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-maroon/80">
-
-              <span className="font-display text-lg font-semibold text-cream">
-                {order.tableId}
-              </span>
-
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-wider text-cream/30">
-                Table
-              </p>
-
-              <p className="font-display text-xl font-semibold text-cream">
-                {order.tableId}
-              </p>
-
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-cream/35">
-                <Clock3 size={12} />
-                {time}
-              </div>
-            </div>
-
-          </div>
-
-          <div className="flex flex-col items-end gap-2">
-            <StatusBadge status={order.status} />
-
-            {updated && (
-              <span className="animate-pulse rounded-full bg-maroon px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cream">
-                Items added
-              </span>
-            )}
-          </div>
-
-        </div>
-
-        {/* Divider */}
-        <div className="my-5 border-t border-line" />
-
-        {/* Items */}
-        <div className="space-y-3">
-
-          {order.items.map((line, index) => (
-            <div
-              key={`${line.id}-${index}`}
-              className="flex items-center justify-between gap-4"
-            >
-
-              <div className="flex min-w-0 items-center gap-3">
-
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-xs font-semibold text-cream/60">
-                  {line.quantity}
-                </span>
-
-                <span className="truncate text-sm text-cream/70">
-                  {line.name}
-                </span>
-
-              </div>
-
-              <span className="shrink-0 text-xs text-cream/25">
-                ×{line.quantity}
-              </span>
-
-            </div>
-          ))}
-
-        </div>
-
-        {/* Bottom */}
-        <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
-
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-cream/25">
-              Order total
-            </p>
-
-            <p className="mt-0.5 text-lg font-semibold text-cream">
-              {formatMoney(order.total)}
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-
-            <button
-              type="button"
-              onClick={() => onCancel(order)}
-              className="flex h-10 items-center gap-1.5 rounded-xl border border-line px-3 text-xs font-medium text-cream/45 transition hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
-            >
-              <Ban size={14} />
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onAdvance(order)}
-              className="flex h-10 items-center gap-2 rounded-xl bg-maroon px-4 text-xs font-semibold text-cream transition hover:bg-maroon-bright"
-            >
-              {STATUS_LABEL[next]}
-
-              <ChevronRight size={14} />
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-    </article>
-  )
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* STATUS                                                                     */
-/* -------------------------------------------------------------------------- */
-
-function StatusBadge({ status }) {
-  const colors = STATUS_COLOR[status]
-
-  return (
-    <span
-      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${colors.badge}`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${colors.dot}`}
+      <PageTop
+        icon={<ClipboardList size={34} className="text-[#f0222c]" />}
+        title="Orders"
+        subtitle="Manage and track all incoming orders in real time."
+        range={range}
+        onRange={setRange}
       />
 
-      {STATUS_LABEL[status]}
-    </span>
-  )
-}
+      <ErrorBanner message={error} onClose={() => setError('')} />
 
-
-/* -------------------------------------------------------------------------- */
-/* STATS                                                                      */
-/* -------------------------------------------------------------------------- */
-
-function OrderStat({
-  label,
-  value,
-  active = false,
-}) {
-  return (
-    <div
-      className={`rounded-2xl border p-4 ${
-        active
-          ? 'border-maroon/30 bg-maroon/10'
-          : 'border-line bg-panel'
-      }`}
-    >
-      <p className="text-xs text-cream/35">
-        {label}
-      </p>
-
-      <p className="mt-2 font-display text-2xl font-semibold text-cream">
-        {value}
-      </p>
-    </div>
-  )
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* COMPLETED ORDER                                                            */
-/* -------------------------------------------------------------------------- */
-
-function CompletedOrder({ order }) {
-  const time = new Date(order.createdAt).toLocaleTimeString(
-    [],
-    {
-      hour: '2-digit',
-      minute: '2-digit',
-    }
-  )
-
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-panel px-4 py-3 opacity-70">
-
-      <div className="flex min-w-0 items-center gap-3">
-
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.04]">
-          {order.status === 'ready' ? (
-            <Check
-              size={16}
-              className="text-emerald-400"
-            />
-          ) : (
-            <Ban
-              size={16}
-              className="text-cream/25"
-            />
-          )}
+      {!data || !overview ? (
+        <div className="flex justify-center py-32">
+          <Spinner className="h-8 w-8" />
         </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard icon={<ClipboardList size={26} />} tone="red" label="Total Orders" value={overview.current.orders} delta={percentChange(overview.current.orders, overview.previous.orders)} sub={vs} />
+            <StatCard icon={<CircleDollarSign size={28} />} tone="green" label="Total Sales" value={money(overview.current.revenue)} delta={percentChange(overview.current.revenue, overview.previous.revenue)} sub={vs} />
+            <StatCard icon={<UsersRound size={26} />} tone="orange" label="Avg. Order Value" value={money(overview.current.avg)} delta={percentChange(overview.current.avg, overview.previous.avg)} sub={vs} />
+            <StatCard icon={<Star size={26} fill="currentColor" />} tone="purple" label="Completed Orders" value={overview.current.completed} delta={percentChange(overview.current.completed, overview.previous.completed)} sub={vs} />
+          </div>
 
-        <div className="min-w-0">
+          <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+            {/* All orders */}
+            <Card className="p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle icon={<List size={24} />} title="All Orders" />
 
-          <p className="text-sm font-medium text-cream/70">
-            Table {order.tableId}
-          </p>
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
+                  <div className="relative min-w-[200px] max-w-[330px] flex-1">
+                    <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/45" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search by order ID, table, item..."
+                      className="h-11 w-full rounded-xl border border-white/[0.09] bg-[#121215] pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#f0222c]/60"
+                    />
+                  </div>
+                  <Dropdown
+                    value={status}
+                    onChange={setStatus}
+                    options={STATUS_FILTER}
+                    icon={<Funnel size={15} className="text-white/70" />}
+                    className="w-[160px]"
+                  />
+                </div>
+              </div>
 
-          <p className="truncate text-xs text-cream/25">
-            {time} · {order.total} DA
-          </p>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.07] text-[13px] text-white/50">
+                      {['#', 'Table', 'Items', 'Total', 'Status', 'Time', 'Actions'].map((h) => (
+                        <th key={h} className="pb-3 pr-3 font-normal">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-16 text-center text-white/40">
+                          {data.orders.length === 0 ? 'No orders yet.' : 'No orders match your search.'}
+                        </td>
+                      </tr>
+                    )}
+                    {rows.map((order) => (
+                      <tr key={order.id} className="border-b border-white/[0.05] last:border-0">
+                        <td className="py-3.5 pr-3 font-medium text-white">#{order.id}</td>
+                        <td className="py-3.5 pr-3"><TablePill tableId={order.tableId} /></td>
+                        <td className="max-w-[190px] truncate py-3.5 pr-3 text-white/85">{itemsSummary(order)}</td>
+                        <td className="py-3.5 pr-3 text-white">{money(order.total)}</td>
+                        <td className="py-3.5 pr-3"><StatusBadge status={order.status} /></td>
+                        <td className="py-3.5 pr-3 text-white/70">{clockTime(order.createdAt)}</td>
+                        <td className="py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelected(order)}
+                              className="rounded-lg bg-white/[0.07] px-4 py-1.5 text-xs font-medium text-white transition hover:bg-white/[0.13]"
+                            >
+                              View
+                            </button>
+                            <RowMenu order={order} busy={busyId === order.id} onChange={changeStatus} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-        </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] text-white/50">
+                <span>
+                  {filtered.length === 0
+                    ? 'Showing 0 orders'
+                    : `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filtered.length)} of ${filtered.length} orders`}
+                </span>
+                <Pagination page={safePage} pageCount={pageCount} onChange={setPage} />
+              </div>
+            </Card>
 
-      </div>
+            {/* Right column */}
+            <div className="space-y-4">
+              <OrderStatusPanel counts={data.counts} />
+              <RecentActivity orders={data.orders} />
+            </div>
+          </div>
+        </>
+      )}
 
-      <StatusBadge status={order.status} />
-
-    </div>
-  )
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* EMPTY                                                                      */
-/* -------------------------------------------------------------------------- */
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-panel/50 px-6 py-16 text-center">
-
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.04]">
-        <PackageCheck
-          size={24}
-          className="text-cream/20"
+      {selected && (
+        <OrderModal
+          order={data?.orders.find((o) => o.id === selected.id) || selected}
+          busy={busyId === selected.id}
+          onChange={changeStatus}
+          onClose={() => setSelected(null)}
         />
-      </div>
-
-      <p className="mt-4 text-sm font-medium text-cream/50">
-        No active orders
-      </p>
-
-      <p className="mt-1 max-w-xs text-xs leading-5 text-cream/25">
-        New restaurant orders will automatically appear here.
-      </p>
-
+      )}
     </div>
   )
 }
 
+/* ------------------------------------------------------------------ */
 
-/* -------------------------------------------------------------------------- */
-/* HELPERS                                                                    */
-/* -------------------------------------------------------------------------- */
+function Pagination({ page, pageCount, onChange }) {
+  const pages = []
+  const start = Math.max(1, Math.min(page - 2, pageCount - 4))
+  for (let p = start; p <= Math.min(pageCount, start + 4); p += 1) pages.push(p)
 
-function formatMoney(value) {
-  return `${Number(value || 0).toLocaleString('fr-DZ')} DA`
+  return (
+    <div className="flex items-center gap-1.5">
+      {pages.map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onChange(p)}
+          className={`h-9 w-9 rounded-lg text-sm font-medium transition ${
+            p === page ? 'bg-[#e11d28] text-white' : 'text-white/65 hover:bg-white/[0.07]'
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page === 1}
+        aria-label="Previous page"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-white/65 hover:bg-white/[0.07] disabled:opacity-30"
+      >
+        <ChevronLeft size={17} />
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(pageCount, page + 1))}
+        disabled={page === pageCount}
+        aria-label="Next page"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-white/65 hover:bg-white/[0.07] disabled:opacity-30"
+      >
+        <ChevronRight size={17} />
+      </button>
+    </div>
+  )
+}
+
+function RowMenu({ order, busy, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useClickOutside(ref, () => setOpen(false), open)
+
+  const next = NEXT_STATUS[order.status]
+  const canCancel = order.status !== 'cancelled' && order.status !== 'completed'
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={`More actions for order ${order.id}`}
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-white/65 transition hover:bg-white/[0.08] hover:text-white"
+      >
+        {busy ? <Spinner className="h-4 w-4" /> : <EllipsisVertical size={17} />}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-white/10 bg-[#141417] py-1 shadow-2xl shadow-black/60">
+          {next && (
+            <MenuButton onClick={() => { setOpen(false); onChange(order, next.to) }}>{next.label}</MenuButton>
+          )}
+          {canCancel && (
+            <MenuButton danger onClick={() => { setOpen(false); onChange(order, 'cancelled') }}>Cancel order</MenuButton>
+          )}
+          {!next && !canCancel && <p className="px-4 py-2 text-xs text-white/40">No actions available.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MenuButton({ danger, children, ...props }) {
+  return (
+    <button
+      type="button"
+      className={`block w-full px-4 py-2 text-left text-sm transition hover:bg-white/[0.06] ${danger ? 'text-red-400' : 'text-white/85'}`}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+
+function OrderStatusPanel({ counts }) {
+  const rows = [
+    ['preparing', 'Preparing'],
+    ['almost', 'Almost Ready'],
+    ['ready', 'Ready'],
+    ['completed', 'Completed'],
+    ['cancelled', 'Cancelled'],
+  ]
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between">
+        <CardTitle icon={<LifeBuoy size={24} />} title="Order Status" />
+        <span className="flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/85">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#f0222c]" /> Live
+        </span>
+      </div>
+
+      <ul className="mt-4 divide-y divide-white/[0.06]">
+        {rows.map(([key, label]) => (
+          <li key={key} className="flex items-center gap-3 py-2.5 text-sm">
+            <span className={`h-[18px] w-[18px] rounded-full ${STATUS_META[key].dot}`} />
+            <span className="flex-1 text-white/90">{label}</span>
+            <span className="font-medium text-white">{counts[key] || 0}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-4 flex items-center gap-3 border-t border-white/[0.07] pt-4">
+        <ChefHat size={34} className="text-[#f0222c]" strokeWidth={1.4} />
+        <div>
+          <p className="text-sm text-white/90">From table to kitchen</p>
+          <p className="text-xs text-white/45">Keep the good food coming!</p>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function RecentActivity({ orders }) {
+  const items = [...orders]
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+    .slice(0, 5)
+    .map((order) => {
+      const isNew =
+        order.status === 'preparing' &&
+        new Date(order.updatedAt) - new Date(order.createdAt) < 5000
+
+      const text = isNew
+        ? `New order from ${orderTableLabel(order)}`
+        : order.status === 'completed' ? 'Completed'
+        : order.status === 'cancelled' ? 'Cancelled'
+        : `Status changed to ${STATUS_META[order.status].label}`
+
+      return { order, isNew, text }
+    })
+
+  return (
+    <Card className="p-6">
+      <CardTitle icon={<Zap size={24} fill="currentColor" />} title="Recent Activity" />
+
+      <ul className="mt-4 space-y-4">
+        {items.length === 0 && <li className="py-4 text-center text-sm text-white/40">Nothing yet today.</li>}
+        {items.map(({ order, isNew, text }) => (
+          <li key={order.id} className="flex items-center gap-3">
+            <span
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white ${
+                isNew ? 'bg-[#d9151f]' : order.status === 'cancelled' ? 'bg-[#7d1117]' : order.status === 'completed' ? 'bg-[#2a2b31]' : 'bg-[#12a56b]'
+              }`}
+            >
+              {isNew ? <ClipboardList size={19} /> : <Check size={19} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-white">Order #{order.id}</p>
+              <p className="truncate text-xs text-white/50">{text}</p>
+            </div>
+            <span className="text-xs text-white/40">{clockTime(order.updatedAt)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
+}
+
+function OrderModal({ order, busy, onChange, onClose }) {
+  const next = NEXT_STATUS[order.status]
+  const canCancel = order.status !== 'cancelled' && order.status !== 'completed'
+
+  return (
+    <Modal
+      title={`Order #${order.id}`}
+      subtitle={`${orderTableLabel(order)} · ${clockTime(order.createdAt)}`}
+      onClose={onClose}
+    >
+      <div className="flex items-center justify-between">
+        <StatusBadge status={order.status} />
+        <span className="text-lg font-bold text-white">{money(order.total)}</span>
+      </div>
+
+      <ul className="mt-4 divide-y divide-white/[0.06] rounded-xl border border-white/[0.07] bg-white/[0.02]">
+        {order.items.map((item) => (
+          <li key={`${item.id}-${item.unitPrice}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+            <span className="text-white/90">{item.quantity} × {item.name}</span>
+            <span className="text-white/60">{money(item.quantity * item.unitPrice)}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        {canCancel && (
+          <GhostButton disabled={busy} onClick={() => onChange(order, 'cancelled')} className="!border-red-500/30 !text-red-300">
+            Cancel order
+          </GhostButton>
+        )}
+        {next && (
+          <PrimaryButton disabled={busy} onClick={() => onChange(order, next.to)}>
+            {busy ? 'Saving…' : next.label}
+          </PrimaryButton>
+        )}
+      </div>
+    </Modal>
+  )
 }

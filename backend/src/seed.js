@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { pool } from './db.js'
+import { ensureSchema } from './migrate.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -64,7 +65,7 @@ const MENU_ITEMS = [
   { id: 'drink-10', categoryId: 'drink', name: 'Zem Energy Drink', price: 200, image: '/images/menu/drink/drink10.jpg', available: false, discountPercent: 0, isBest: false },
 ]
 
-const TABLES = [1, 2, 3, 4, 5].map((n) => ({ id: String(n), label: `Table ${n}` }))
+const TABLES = [1, 2, 3, 4, 5].map((n) => ({ id: String(n), label: `Table ${n}`, seats: 4 }))
 
 const CHATBOT_FAQS = [
   { keyword: 'wifi', answer: 'Yes, we have free wifi \u2014 just ask a staff member for the password.' },
@@ -74,6 +75,7 @@ const CHATBOT_FAQS = [
 async function seed() {
   const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8')
   await pool.query(schema)
+  await ensureSchema()
 
   const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM categories')
   if (rows[0].count > 0) {
@@ -103,7 +105,10 @@ async function seed() {
     }
 
     for (const t of TABLES) {
-      await client.query('INSERT INTO restaurant_tables (id, label) VALUES ($1,$2)', [t.id, t.label])
+      await client.query(
+        'INSERT INTO restaurant_tables (id, label, seats) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING',
+        [t.id, t.label, t.seats],
+      )
     }
 
     for (const faq of CHATBOT_FAQS) {

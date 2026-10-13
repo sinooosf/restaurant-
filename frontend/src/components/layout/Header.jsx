@@ -1,6 +1,7 @@
 import { Search, ShoppingCart } from 'lucide-react'
-import Logo from '/logo.png'
-import Bot from '/public/bot.png'
+// Files in /public are served from the site root — referenced by URL, never imported.
+const Logo = '/logo.png'
+const Bot = '/bot.png'
 import { useCart } from '../../context/CartContext'
 
 export default function Header({

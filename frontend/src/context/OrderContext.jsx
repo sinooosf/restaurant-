@@ -7,7 +7,7 @@ import {
   useCallback,
 } from 'react'
 
-import { matchPath, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 
 import {
   submitOrder,
@@ -17,6 +17,7 @@ import {
   cancelOrder as cancelOrderRequest,
 } from '../services/api'
 
+import { HOME_TABLE_ID, tableIdFromPath } from '../data/tables'
 import { useCart } from './CartContext'
 
 const OrderContext = createContext(null)
@@ -27,10 +28,17 @@ export const ORDER_STAGES = [
   'ready',
 ]
 
+// Statuses after which nothing more happens to the order.
+const FINISHED = ['ready', 'completed', 'cancelled']
+
 // How often to ask the backend "has this order's status changed yet?"
 // The actual status comes from the dashboard — a staff member clicking
-// "Almost done" / "Ready" / "Cancel" there is what really moves this along.
+// "Almost ready" / "Ready" / "Cancel" there is what really moves this along.
 const POLL_INTERVAL_MS = 2500
+
+// A "To Home" order is remembered by the phone only (never shared through
+// the table), so it is forgotten after this long.
+const HOME_ORDER_TTL_MS = 12 * 60 * 60 * 1000
 
 // The phone remembers which order it placed at each table, so a finished
 // ("Ready" / "Cancelled") order can still be closed after a reload.
@@ -60,6 +68,27 @@ function clearOrderId(tableId) {
   }
 }
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Runs `task`, and tries again while the SERVER cannot be reached (network
+// error or a 5xx while it wakes up). A real answer — including "404 not
+// found" — is returned/thrown immediately.
+async function withRetry(task, { tries = 5, delayMs = 1500, isCancelled = () => false } = {}) {
+  let lastError
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    if (isCancelled()) throw new Error('cancelled')
+    try {
+      return await task()
+    } catch (error) {
+      lastError = error
+      const answered = error?.status && error.status < 500
+      if (answered) throw error
+      if (attempt < tries - 1) await wait(delayMs)
+    }
+  }
+  throw lastError
+}
+
 export function OrderProvider({ children }) {
   const [order, setOrder] = useState(null)
   const [trackingVisible, setTrackingVisible] = useState(false)
@@ -70,10 +99,9 @@ export function OrderProvider({ children }) {
   // so OrderContext can safely access the cart.
   const cart = useCart()
 
-  // Which table is this phone looking at? (from the /table/:tableId address)
-  const location = useLocation()
-  const tableId = matchPath('/table/:tableId', location.pathname)?.params
-    .tableId
+  // Which table is this phone looking at? (/table/:tableId or /ToHomeOrder)
+  const { pathname } = useLocation()
+  const tableId = tableIdFromPath(pathname)
 
   // -------------------------------------------------------------------------
   // TIMER HELPERS
@@ -99,63 +127,108 @@ export function OrderProvider({ children }) {
   // customer closes it.
   // -------------------------------------------------------------------------
 
-  const startPolling = useCallback((orderId) => {
-    if (pollTimer.current) clearInterval(pollTimer.current)
+  const startPolling = useCallback(
+    (orderId, forTableId) => {
+      if (pollTimer.current) clearInterval(pollTimer.current)
 
-    pollTimer.current = setInterval(async () => {
-      try {
-        const latest = await getOrder(orderId)
+      pollTimer.current = setInterval(async () => {
+        try {
+          const latest = await getOrder(orderId)
 
-        setOrder((previous) => {
-          if (!previous || previous.id !== orderId) return previous
-          return latest
-        })
+          setOrder((previous) => {
+            if (!previous || previous.id !== orderId) return previous
+            return latest
+          })
 
-        if (latest.status === 'ready' || latest.status === 'cancelled') {
-          clearInterval(pollTimer.current)
-          pollTimer.current = null
+          if (FINISHED.includes(latest.status)) {
+            clearInterval(pollTimer.current)
+            pollTimer.current = null
 
-          // Make sure the customer sees it. No auto-close.
-          setTrackingVisible(true)
+            // Make sure the customer sees it. No auto-close.
+            setTrackingVisible(true)
+          }
+        } catch (error) {
+          // The order no longer exists (the staff merged it into another
+          // order, or it was removed): start over cleanly instead of
+          // polling a ghost forever.
+          if (error?.status === 404) {
+            clearInterval(pollTimer.current)
+            pollTimer.current = null
+            clearOrderId(forTableId)
+            setOrder(null)
+            setTrackingVisible(false)
+            return
+          }
+
+          // A single missed poll isn't worth surfacing to the customer —
+          // it'll just try again on the next tick.
+          console.error('Failed to refresh order status:', error)
         }
-      } catch (error) {
-        // A single missed poll isn't worth surfacing to the customer —
-        // it'll just try again on the next tick.
-        console.error('Failed to refresh order status:', error)
-      }
-    }, POLL_INTERVAL_MS)
-  }, [])
+      }, POLL_INTERVAL_MS)
+    },
+    []
+  )
 
   // -------------------------------------------------------------------------
   // RESTORE — when someone opens (or re-scans) a table's page:
   //  1. if the table already has an order in progress, bring it back;
   //  2. otherwise, if THIS phone has an order that finished (Ready /
   //     Cancelled) but was never closed, show it so it can be closed.
+  //
+  // For the To Home link there is no shared table: only step 2 applies, and
+  // it also brings back an order that is still being prepared.
+  //
+  // Every request retries while the server is unreachable, so a sleeping
+  // server (or a flaky connection) no longer makes a customer's order
+  // "disappear" when they come back to it.
   // -------------------------------------------------------------------------
 
   useEffect(() => {
     if (!tableId) return
 
+    // Another table than the one we were showing: start from a clean slate.
+    clearTimers()
+    setOrder((previous) =>
+      previous && String(previous.tableId) === String(tableId) ? previous : null
+    )
+    setTrackingVisible(false)
+
     let cancelled = false
+    const isCancelled = () => cancelled
+    const isHome = tableId === HOME_TABLE_ID
 
     async function restore() {
       try {
-        let found = await getActiveOrderForTable(tableId)
+        let found = null
+
+        if (!isHome) {
+          found = await withRetry(() => getActiveOrderForTable(tableId), { isCancelled })
+        }
 
         if (!found) {
           const savedId = readOrderId(tableId)
 
           if (savedId) {
             try {
-              const saved = await getOrder(savedId)
+              const saved = await withRetry(() => getOrder(savedId), { isCancelled })
 
-              if (saved.status === 'ready' || saved.status === 'cancelled') {
+              const sameTable = String(saved.tableId) === String(tableId)
+              const fresh =
+                !isHome || Date.now() - new Date(saved.createdAt).getTime() < HOME_ORDER_TTL_MS
+
+              const keep = isHome
+                ? saved.status !== 'completed'
+                : FINISHED.includes(saved.status) && saved.status !== 'completed'
+
+              if (sameTable && fresh && keep) {
                 found = saved
               } else {
                 clearOrderId(tableId)
               }
-            } catch {
-              clearOrderId(tableId)
+            } catch (error) {
+              // Gone for good (404) → forget it. Unreachable → keep the id,
+              // so the next visit can still find the order.
+              if (error?.status === 404) clearOrderId(tableId)
             }
           }
         }
@@ -169,11 +242,13 @@ export function OrderProvider({ children }) {
         setTrackingVisible(true)
 
         if (found.status === 'preparing' || found.status === 'almost') {
-          startPolling(found.id)
+          startPolling(found.id, tableId)
         }
       } catch (error) {
         // If this fails the customer simply sees a fresh page.
-        console.error('Failed to restore the table order:', error)
+        if (error?.message !== 'cancelled') {
+          console.error('Failed to restore the table order:', error)
+        }
       }
     }
 
@@ -217,7 +292,7 @@ export function OrderProvider({ children }) {
 
       setOrder(created)
       setTrackingVisible(true)
-      startPolling(created.id)
+      startPolling(created.id, tableId)
 
       return created
     },

@@ -25,7 +25,12 @@ export function serializeMenuItem(row) {
 }
 
 export function serializeTable(row) {
-  return { id: row.id, label: row.label }
+  return {
+    id: row.id,
+    label: row.label,
+    kind: row.kind || 'table',
+    seats: row.seats ?? 4,
+  }
 }
 
 export function serializeFaq(row) {
@@ -39,6 +44,7 @@ export function serializeOrder(row, items) {
     status: row.status,
     total: row.total,
     createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
     items: items.map((line) => ({
       id: line.item_id,
       name: line.name,

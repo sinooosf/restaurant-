@@ -1,120 +1,148 @@
-import { NavLink, Navigate, Outlet } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import {
-  ChefHat,
+  Armchair,
   ClipboardList,
-  LayoutGrid,
+  House,
   LogOut,
-  MessageCircle,
-  Table2,
+  MessageSquareMore,
+  Utensils,
 } from 'lucide-react'
 import { useAdminAuth } from './AdminAuthContext'
+import { AdminShellProvider, useAdminShell } from './AdminShellContext'
 
 const NAV_ITEMS = [
-  { to: '/admin', label: 'Overview', icon: LayoutGrid, end: true },
-  { to: '/admin/orders', label: 'Orders', icon: ClipboardList },
-  { to: '/admin/menu', label: 'Menu', icon: ChefHat },
-  { to: '/admin/tables', label: 'Tables', icon: Table2 },
-  { to: '/admin/chatbot', label: 'Chatbot', icon: MessageCircle },
+  { to: '/admin', label: 'Overview', icon: House, end: true },
+  { to: '/admin/orders', label: 'Orders', icon: ClipboardList, badge: true },
+  { to: '/admin/menu', label: 'Menu', icon: Utensils },
+  { to: '/admin/tables', label: 'Tables', icon: Armchair },
+  { to: '/admin/chatbot', label: 'Chatbot', icon: MessageSquareMore },
 ]
 
 export default function AdminLayout() {
-  const { isAuthed, logout } = useAdminAuth()
+  const { isAuthed } = useAdminAuth()
 
   if (!isAuthed) {
     return <Navigate to="/admin/login" replace />
   }
 
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
+  return (
+    <AdminShellProvider>
+      <Shell />
+    </AdminShellProvider>
+  )
+}
+
+function Shell() {
+  const { logout } = useAdminAuth()
+  const { summary, navOpen, setNavOpen } = useAdminShell()
+  const { pathname } = useLocation()
+
+  // Close the slide-over menu after choosing a page (small screens).
+  useEffect(() => {
+    setNavOpen(false)
+  }, [pathname, setNavOpen])
 
   return (
     // "admin-theme" gives the whole dashboard its own colors (see index.css).
-    <div className="admin-theme relative min-h-dvh overflow-x-hidden bg-ink text-cream">
+    <div className="admin-theme relative min-h-dvh bg-[#09090b] text-white">
 
-      {/* Soft background glows */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-maroon/25 blur-[150px]" />
-        <div className="absolute -right-40 top-1/3 h-[420px] w-[420px] rounded-full bg-sky-500/10 blur-[150px]" />
-      </div>
+      {/* Dark backdrop behind the slide-over menu (small screens) */}
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/70 lg:hidden"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
 
-      <header className="sticky top-0 z-20 border-b border-line/60 bg-ink/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+      {/* ------------------------------------------------------------ */}
+      {/* SIDEBAR                                                       */}
+      {/* ------------------------------------------------------------ */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col overflow-hidden border-r border-[#3a0d11]/70 bg-gradient-to-b from-[#0d0d10] via-[#0b0b0d] to-[#0b0809] transition-transform duration-300 lg:translate-x-0 ${
+          navOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Red ribbon decoration at the bottom */}
+        <svg
+          className="pointer-events-none absolute bottom-0 left-0 h-[52%] w-full"
+          viewBox="0 0 232 420"
+          preserveAspectRatio="none"
+          fill="none"
+        >
+          <defs>
+            <linearGradient id="ribbon-a" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="#7a0c12" stopOpacity="0.95" />
+              <stop offset="1" stopColor="#d9151f" stopOpacity="0.15" />
+            </linearGradient>
+            <linearGradient id="ribbon-b" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="#d9151f" stopOpacity="0.55" />
+              <stop offset="1" stopColor="#d9151f" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d="M0 420 L0 250 C 70 300, 150 230, 232 120 L232 420 Z" fill="url(#ribbon-a)" />
+          <path d="M0 330 C 70 360, 160 280, 232 170" stroke="url(#ribbon-b)" strokeWidth="2.5" />
+          <path d="M0 360 C 80 385, 170 310, 232 205" stroke="url(#ribbon-b)" strokeWidth="1.5" />
+        </svg>
 
-          {/* Brand */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-maroon-bright to-maroon shadow-lg shadow-maroon/30">
-              <ChefHat size={20} className="text-white" />
-            </div>
-
-            <div className="leading-tight">
-              <p className="font-display text-lg tracking-wide">
-                MEET THE CHEFS
-              </p>
-              <p className="text-[11px] text-cream/45">Staff dashboard</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="hidden text-xs capitalize text-cream/40 sm:block">
-              {today}
-            </span>
-
-            <button
-              type="button"
-              onClick={logout}
-              className="flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-xs font-medium text-cream/70 transition hover:border-maroon-bright/60 hover:bg-panel hover:text-cream"
-            >
-              <LogOut size={14} /> Log out
-            </button>
-          </div>
+        {/* Brand */}
+        <div className="relative flex flex-col items-center px-5 pb-3 pt-5">
+          <img src="/logo.png" alt="Meet The Chefs" className="h-[88px] w-auto object-contain" />
+          <p className="mt-1 text-[11px] tracking-wide text-white/55">Good Food · Happy People</p>
         </div>
 
         {/* Navigation */}
-        <nav className="mx-auto max-w-6xl px-4 pb-3">
-          <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-2xl border border-line/60 bg-panel/70 p-1">
-            {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className="relative shrink-0 rounded-xl px-4 py-2 text-sm font-medium"
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <motion.span
-                        layoutId="admin-nav-pill"
-                        transition={{
-                          type: 'spring',
-                          stiffness: 400,
-                          damping: 32,
-                        }}
-                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-maroon to-maroon-bright shadow-md shadow-maroon/30"
-                      />
-                    )}
+        <nav className="relative mt-4 flex flex-col gap-2 px-3">
+          {NAV_ITEMS.map(({ to, label, icon: Icon, end, badge }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `group flex items-center gap-3.5 rounded-xl px-5 py-3.5 text-[15px] font-medium transition ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#d9151f] to-[#c4121c] text-white shadow-[0_8px_24px_rgba(217,21,31,0.35)]'
+                    : 'text-white/75 hover:bg-white/[0.05] hover:text-white'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon size={21} strokeWidth={1.8} />
+                  <span className="flex-1">{label}</span>
 
+                  {badge && summary.pendingCount > 0 && (
                     <span
-                      className={`relative z-10 flex items-center gap-2 transition-colors ${
-                        isActive
-                          ? 'text-white'
-                          : 'text-cream/60 hover:text-cream'
+                      className={`flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-bold ${
+                        isActive ? 'bg-white/90 text-[#c4121c]' : 'bg-[#e11d28] text-white'
                       }`}
                     >
-                      <Icon size={15} /> {label}
+                      {summary.pendingCount > 99 ? '99+' : summary.pendingCount}
                     </span>
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
+                  )}
+                </>
+              )}
+            </NavLink>
+          ))}
         </nav>
-      </header>
 
-      <main className="relative mx-auto max-w-6xl px-4 py-6">
+        {/* Logout */}
+        <div className="relative mt-auto px-3 pb-6">
+          <button
+            type="button"
+            onClick={logout}
+            className="flex w-full items-center gap-3.5 rounded-xl px-5 py-3.5 text-[15px] font-medium text-white/80 transition hover:bg-white/[0.07] hover:text-white"
+          >
+            <LogOut size={21} strokeWidth={1.8} />
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* ------------------------------------------------------------ */}
+      {/* PAGE                                                          */}
+      {/* ------------------------------------------------------------ */}
+      <main className="min-h-dvh px-4 pb-10 pt-6 sm:px-6 lg:ml-[232px] lg:px-7 xl:px-8">
         <Outlet />
       </main>
     </div>

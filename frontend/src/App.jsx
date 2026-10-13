@@ -4,7 +4,7 @@ import { CartProvider } from './context/CartContext'
 import { OrderProvider } from './context/OrderContext'
 import { CATEGORIES, MENU_ITEMS, loadMenuData } from './data/menu'
 import { preloadImages } from './utils/preloadImages'
-import { loadTables } from './data/tables'
+import { HOME_PATH, loadTables } from './data/tables'
 import { loadChatbotFaqs } from './components/chatbot/chatbotResponses'
 import IntroSplash from './components/layout/IntroSplash'
 import TablePage from './pages/TablePage'
@@ -59,6 +59,8 @@ function CustomerApp() {
             <Routes>
               <Route path="/" element={<Navigate to="/table/1" replace />} />
               <Route path="/table/:tableId" element={<TablePage />} />
+              {/* The special link for customers ordering without a table */}
+              <Route path={HOME_PATH} element={<TablePage />} />
               <Route path="*" element={<TableNotFound />} />
             </Routes>
           </OrderProvider>

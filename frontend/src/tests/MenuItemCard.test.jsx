@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import MenuItemCard from '../components/menu/MenuItemCard'
 import { CartProvider } from '../context/CartContext'
 import { MENU_ITEMS } from '../data/menu'
 
 function renderCard(item) {
   return render(
+    <MemoryRouter initialEntries={['/table/1']}>
     <CartProvider>
       <MenuItemCard item={item} />
-    </CartProvider>,
+    </CartProvider>
+    </MemoryRouter>,
   )
 }
 

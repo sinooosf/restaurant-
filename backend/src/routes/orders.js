@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
+import { HOME_TABLE_ID } from '../migrate.js'
 
 const router = Router()
 
@@ -94,6 +95,11 @@ router.post('/', async (req, res, next) => {
 // progress, so scanning the QR code again brings it back.
 router.get('/table/:tableId/active', async (req, res, next) => {
   try {
+    // "To Home" orders belong to one customer each — two people ordering
+    // through that link at the same time must never see each other's order.
+    // Their own phone remembers its order id instead.
+    if (req.params.tableId === HOME_TABLE_ID) return res.json(null)
+
     const result = await pool.query(
       `SELECT id FROM orders
         WHERE table_id = $1
@@ -189,7 +195,8 @@ router.post('/:id/items', async (req, res, next) => {
     await client.query(
       `UPDATE orders
           SET total = (SELECT COALESCE(SUM(quantity * unit_price), 0)
-                         FROM order_items WHERE order_id = $1)
+                         FROM order_items WHERE order_id = $1),
+              updated_at = now()
         WHERE id = $1`,
       [order.id],
     )
@@ -219,13 +226,21 @@ router.get('/:id', async (req, res, next) => {
 // PATCH /api/orders/:id/cancel — the customer's own "Cancel order" button.
 router.patch('/:id/cancel', async (req, res, next) => {
   try {
-    const result = await pool.query(
-      "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING *",
+    const existing = await loadOrder(req.params.id)
+    if (!existing) return res.status(404).json({ error: 'Order not found.' })
+
+    // Only a dish that hasn't started cooking can be cancelled by the customer.
+    if (existing.status !== 'preparing') {
+      return res.status(409).json({
+        error: 'The kitchen already started this order, so it can no longer be cancelled.',
+      })
+    }
+
+    await pool.query(
+      "UPDATE orders SET status = 'cancelled', updated_at = now() WHERE id = $1",
       [req.params.id],
     )
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found.' })
-    const order = await loadOrder(req.params.id)
-    res.json(order)
+    res.json(await loadOrder(req.params.id))
   } catch (err) {
     next(err)
   }

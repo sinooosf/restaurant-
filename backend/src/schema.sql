@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
 CREATE TABLE IF NOT EXISTS restaurant_tables (
   id          TEXT PRIMARY KEY,   -- matches the /table/:id link, e.g. '1'
   label       TEXT NOT NULL,      -- shown in the dashboard, e.g. "Table 1"
+  kind        TEXT NOT NULL DEFAULT 'table',  -- 'table' | 'home' (the special ToHomeOrder link)
+  seats       INTEGER NOT NULL DEFAULT 4,
+  status      TEXT NOT NULL DEFAULT 'auto',   -- 'auto' | 'cleaning' | 'out_of_service'
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -35,9 +38,11 @@ CREATE TABLE IF NOT EXISTS orders (
   id          SERIAL PRIMARY KEY,
   table_id    TEXT NOT NULL,
   status      TEXT NOT NULL DEFAULT 'preparing'
-              CHECK (status IN ('preparing', 'almost', 'ready', 'cancelled')),
+              CONSTRAINT orders_status_check
+              CHECK (status IN ('preparing', 'almost', 'ready', 'completed', 'cancelled')),
   total       INTEGER NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS order_items (
