@@ -85,7 +85,7 @@ export default function AdminChatbot() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 xl:flex xl:h-[calc(100dvh-4rem)] xl:flex-col xl:space-y-0 xl:gap-6">
       <PageTop
         icon={
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#d9151f] text-white">
@@ -96,9 +96,9 @@ export default function AdminChatbot() {
         subtitle="Your smart assistant for a smoother restaurant experience."
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_370px]">
+      <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_370px]">
         {/* Chat */}
-        <Card className="flex h-[calc(100dvh-190px)] min-h-[520px] flex-col overflow-hidden">
+        <Card className="flex h-[70dvh] min-h-[480px] flex-col overflow-hidden xl:h-full xl:min-h-0">
           <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
             <div className="flex items-center gap-4">
               <img src={AVATAR} alt="" className="h-14 w-14 rounded-full bg-white object-contain" />
@@ -159,10 +159,10 @@ export default function AdminChatbot() {
         </Card>
 
         {/* Side panels */}
-        <div className="space-y-4">
-          <Card className="p-5">
+        <div className="flex flex-col gap-4 xl:min-h-0">
+          <Card className="flex min-h-0 flex-1 flex-col p-5 max-xl:max-h-[420px]">
             <CardTitle icon={<Zap size={24} fill="currentColor" />} title="Quick Actions" />
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden pr-1">
               {QUICK_ACTIONS.map(({ icon: Icon, title, sub, prompt }) => (
                 <button
                   key={title}
@@ -183,7 +183,7 @@ export default function AdminChatbot() {
             </div>
           </Card>
 
-          <Card className="flex items-center gap-4 p-5">
+          <Card className="flex shrink-0 items-center gap-4 p-5">
             <img src={AVATAR} alt="" className="h-16 w-16 shrink-0 rounded-full bg-white object-contain" />
             <div>
               <div className="flex items-center gap-3">

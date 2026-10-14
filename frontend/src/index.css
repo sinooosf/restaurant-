@@ -130,3 +130,17 @@ body {
 .admin-theme .fade-up {
   animation: admin-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
+
+/* No sideways scrolling anywhere on the page. (The category strip on the
+   customer menu still swipes inside its own box — it has to, to reach every
+   category on a narrow phone.) */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+.admin-theme {
+  overflow-x: clip;
+}
