@@ -232,10 +232,13 @@ router.post('/tables', async (req, res, next) => {
   }
 })
 
+// Floor-plan position in % (0-100), or null when not sent.
+const pct = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(Math.max(Number(v), 0), 100) : null)
+
 // Change seats / label, or set the manual status (auto | cleaning | out_of_service).
 router.patch('/tables/:id', async (req, res, next) => {
   try {
-    const { seats, label, status } = req.body || {}
+    const { seats, label, status, posX, posY } = req.body || {}
 
     if (status !== undefined && !['auto', 'cleaning', 'out_of_service'].includes(status)) {
       return res.status(400).json({ error: 'status must be auto, cleaning or out_of_service.' })
@@ -247,10 +250,12 @@ router.patch('/tables/:id', async (req, res, next) => {
       `UPDATE restaurant_tables SET
          seats  = COALESCE($1, seats),
          label  = COALESCE($2, label),
-         status = COALESCE($3, status)
+         status = COALESCE($3, status),
+         pos_x  = COALESCE($5, pos_x),
+         pos_y  = COALESCE($6, pos_y)
        WHERE id = $4 AND kind = 'table'
        RETURNING *`,
-      [seatCount, label?.trim() || null, status ?? null, req.params.id],
+      [seatCount, label?.trim() || null, status ?? null, req.params.id, pct(posX), pct(posY)],
     )
     if (result.rows.length === 0) return res.status(404).json({ error: 'Table not found.' })
     res.json(serializeTable(result.rows[0]))

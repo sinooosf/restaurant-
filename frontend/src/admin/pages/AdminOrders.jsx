@@ -153,7 +153,7 @@ export default function AdminOrders() {
             <StatCard icon={<Star size={26} fill="currentColor" />} tone="purple" label="Completed Orders" value={overview.current.completed} delta={percentChange(overview.current.completed, overview.previous.completed)} sub={vs} />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_330px]">
             {/* All orders */}
             <Card className="p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -179,12 +179,21 @@ export default function AdminOrders() {
                 </div>
               </div>
 
-              <div className="mt-5 overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
+              <div className="mt-5">
+                <table className="w-full table-fixed text-left text-sm">
+                  <colgroup>
+                    <col className="w-[64px]" />
+                    <col className="w-[108px]" />
+                    <col />
+                    <col className="w-[104px]" />
+                    <col className="w-[124px]" />
+                    <col className="hidden w-[92px] md:table-column" />
+                    <col className="w-[112px]" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-white/[0.07] text-[13px] text-white/50">
                       {['#', 'Table', 'Items', 'Total', 'Status', 'Time', 'Actions'].map((h) => (
-                        <th key={h} className="pb-3 pr-3 font-normal">{h}</th>
+                        <th key={h} className={`pb-3 pr-3 font-normal ${h === 'Time' ? 'hidden md:table-cell' : ''}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -200,10 +209,10 @@ export default function AdminOrders() {
                       <tr key={order.id} className="border-b border-white/[0.05] last:border-0">
                         <td className="py-3.5 pr-3 font-medium text-white">#{order.id}</td>
                         <td className="py-3.5 pr-3"><TablePill tableId={order.tableId} /></td>
-                        <td className="max-w-[190px] truncate py-3.5 pr-3 text-white/85">{itemsSummary(order)}</td>
+                        <td className="truncate py-3.5 pr-3 text-white/85">{itemsSummary(order)}</td>
                         <td className="py-3.5 pr-3 text-white">{money(order.total)}</td>
                         <td className="py-3.5 pr-3"><StatusBadge status={order.status} /></td>
-                        <td className="py-3.5 pr-3 text-white/70">{clockTime(order.createdAt)}</td>
+                        <td className="hidden py-3.5 pr-3 text-white/70 md:table-cell">{clockTime(order.createdAt)}</td>
                         <td className="py-3.5">
                           <div className="flex items-center gap-1.5">
                             <button
@@ -233,7 +242,7 @@ export default function AdminOrders() {
             </Card>
 
             {/* Right column */}
-            <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-1 2xl:content-start">
               <OrderStatusPanel counts={data.counts} />
               <RecentActivity orders={data.orders} />
             </div>

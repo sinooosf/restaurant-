@@ -33,7 +33,7 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
       <style>{STYLES}</style>
  
       {/* MENU stays completely fixed */}
-      <div className="shrink-0 bg-ink py-3">
+      <div className="shrink-0 bg-ink py-3 short:py-1.5">
         <div className="flex items-center gap-3">
           {/* Left line + diamond */}
           <div className="flex flex-1 items-center">
@@ -76,7 +76,7 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
       {/* ONLY THIS PART SCROLLS */}
       <div
         key={resetKey}
-        className="min-h-0 flex-1 overflow-y-auto pt-4"
+        className="min-h-0 flex-1 overflow-y-auto pt-4 short:pt-2"
         style={{ paddingBottom: bottomInset + 28 }}
       >
         {items.length === 0 ? (

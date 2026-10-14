@@ -80,11 +80,11 @@ export default function CategoryList({
   }, [activeCategoryId])
 
   return (
-    <section className="px-4 pt-4">
+    <section className="px-4 pt-4 short:pt-1">
       <style>{STYLES}</style>
 
       {/* Section heading */}
-      <div className="mb-2 text-center">
+      <div className="mb-2 text-center short:hidden">
         <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-maroon-bright">
           Browse
         </p>
@@ -115,7 +115,7 @@ export default function CategoryList({
         {/* Scrollable categories */}
         <div
           ref={scrollRef}
-          className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-4 pt-3"
+          className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-4 pt-3 short:gap-2 short:pb-2 short:pt-2"
         >
           {categories.map((category, index) => {
             const isActive = category.id === activeCategoryId
@@ -131,7 +131,7 @@ export default function CategoryList({
                 onClick={() => onSelect(category.id)}
                 aria-pressed={isActive}
                 style={{ animationDelay: `${index * 70}ms` }}
-                className={`cat-rise group relative h-[122px] w-[98px] shrink-0 overflow-hidden rounded-3xl border transition-all duration-500 active:scale-95 ${
+                className={`cat-rise group relative h-[122px] w-[98px] short:h-[92px] short:w-[80px] shrink-0 overflow-hidden rounded-3xl border transition-all duration-500 active:scale-95 ${
                   isActive
                     ? 'scale-105 border-maroon-bright bg-gradient-to-b from-maroon-bright via-maroon to-maroon-soft shadow-[0_0_28px_rgba(179,24,28,0.6)]'
                     : 'border-line bg-panel hover:-translate-y-1 hover:border-maroon-bright/60 hover:shadow-[0_0_18px_rgba(179,24,28,0.3)]'
@@ -144,7 +144,7 @@ export default function CategoryList({
 
                 {/* Pulsing glow behind the image */}
                 <div
-                  className={`pointer-events-none absolute left-1/2 top-[34px] h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-maroon-bright blur-xl transition-opacity duration-500 ${
+                  className={`pointer-events-none absolute left-1/2 top-[34px] h-16 w-16 short:top-[26px] short:h-11 short:w-11 -translate-x-1/2 -translate-y-1/2 rounded-full bg-maroon-bright blur-xl transition-opacity duration-500 ${
                     isActive
                       ? 'cat-glow opacity-100'
                       : 'opacity-0 group-hover:opacity-60'
@@ -152,7 +152,7 @@ export default function CategoryList({
                 />
 
                 {/* Image + spinning ring */}
-                <div className="relative z-10 mx-auto mt-2.5 h-[62px] w-[62px]">
+                <div className="relative z-10 mx-auto mt-2.5 h-[62px] w-[62px] short:mt-2 short:h-[42px] short:w-[42px]">
                   {isActive && (
                     <div className="cat-spin absolute -inset-[5px] rounded-full border-2 border-dashed border-cream/70" />
                   )}
@@ -173,9 +173,9 @@ export default function CategoryList({
                 </div>
 
                 {/* Name + count */}
-                <div className="relative z-10 mt-2 px-2 text-center">
+                <div className="relative z-10 mt-2 px-2 text-center short:mt-1.5">
                   <p
-                    className={`truncate font-display text-[15px] uppercase leading-tight tracking-wide transition-colors ${
+                    className={`truncate font-display text-[15px] short:text-[13px] uppercase leading-tight tracking-wide transition-colors ${
                       isActive
                         ? 'text-cream'
                         : 'text-cream/70 group-hover:text-cream'
@@ -185,7 +185,7 @@ export default function CategoryList({
                   </p>
 
                   <span
-                    className={`mt-1 inline-block rounded-full px-2 py-[2px] text-[9px] font-semibold transition-colors ${
+                    className={`mt-1 inline-block rounded-full px-2 py-[2px] text-[9px] short:hidden font-semibold transition-colors ${
                       isActive
                         ? 'bg-ink/40 text-cream'
                         : 'bg-white/5 text-cream/40'

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS restaurant_tables (
   kind        TEXT NOT NULL DEFAULT 'table',  -- 'table' | 'home' (the special ToHomeOrder link)
   seats       INTEGER NOT NULL DEFAULT 4,
   status      TEXT NOT NULL DEFAULT 'auto',   -- 'auto' | 'cleaning' | 'out_of_service'
+  pos_x       REAL,                           -- position on the floor plan, in % (null = automatic)
+  pos_y       REAL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

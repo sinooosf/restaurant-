@@ -17,6 +17,8 @@ export async function ensureSchema() {
     ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS kind   TEXT    NOT NULL DEFAULT 'table';
     ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS seats  INTEGER NOT NULL DEFAULT 4;
     ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS status TEXT    NOT NULL DEFAULT 'auto';
+    ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS pos_x REAL;
+    ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS pos_y REAL;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
   `)
 

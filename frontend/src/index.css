@@ -15,6 +15,10 @@
 @import "@fontsource/inter/700.css";
 @import "@fontsource/caveat/600.css";
 
+/* Phones with a short screen (iPhone SE and similar, 740px tall or less).
+   Used as "short:" in class names. Taller phones (iPhone 16...) are untouched. */
+@custom-variant short (@media (max-height: 740px));
+
 @theme {
   --font-display: "Anton", sans-serif;
   --font-sans: "Poppins", sans-serif;

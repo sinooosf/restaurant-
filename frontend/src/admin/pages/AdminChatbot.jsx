@@ -5,7 +5,10 @@ import {
   ChevronRight,
   CircleHelp,
   ClipboardList,
-  Lightbulb,
+  BadgeDollarSign,
+  Timer,
+  Home,
+  EyeOff,
   Armchair,
   Send,
   Sparkles,
@@ -38,15 +41,13 @@ const QUICK_ACTIONS = [
   { icon: ClipboardList, title: 'Check current orders', sub: 'See active and pending orders', prompt: QUICK_PROMPTS.orders },
   { icon: ChefHat, title: 'Popular items', sub: 'View best selling dishes', prompt: QUICK_PROMPTS.popular },
   { icon: Armchair, title: 'Table status', sub: 'Check table occupancy', prompt: QUICK_PROMPTS.tables },
-  { icon: CircleHelp, title: 'Help & FAQ', sub: 'Common questions and answers', prompt: QUICK_PROMPTS.help },
+  { icon: BadgeDollarSign, title: 'Sales today', sub: 'Money made vs. yesterday', prompt: 'How much did we make today?' },
+  { icon: Timer, title: 'Longest wait', sub: 'Which order is waiting most', prompt: 'Which order has been waiting the longest?' },
+  { icon: Home, title: 'To Home orders', sub: 'Orders without a table', prompt: 'Any to home orders?' },
+  { icon: EyeOff, title: 'Hidden items', sub: 'Dishes customers cannot see', prompt: 'Which items are hidden?' },
+  { icon: CircleHelp, title: 'Help & FAQ', sub: 'Everything I can answer', prompt: QUICK_PROMPTS.help },
 ]
 
-const SUGGESTIONS = [
-  "Show today's best sellers",
-  'Get table status',
-  'How much did we make today?',
-  'Add a new menu item',
-]
 
 export default function AdminChatbot() {
   const { password } = useAdminAuth()
@@ -197,22 +198,6 @@ export default function AdminChatbot() {
             </div>
           </Card>
 
-          <Card className="p-5">
-            <CardTitle icon={<Lightbulb size={22} />} title="Recent Suggestions" />
-            <div className="mt-4 space-y-2.5">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => send(s)}
-                  className="flex w-full items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3 text-left text-sm text-white/90 transition hover:bg-white/[0.08]"
-                >
-                  {s}
-                  <ChevronRight size={15} className="text-white/55" />
-                </button>
-              ))}
-            </div>
-          </Card>
         </div>
       </div>
     </div>

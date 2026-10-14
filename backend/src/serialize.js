@@ -30,6 +30,8 @@ export function serializeTable(row) {
     label: row.label,
     kind: row.kind || 'table',
     seats: row.seats ?? 4,
+    posX: row.pos_x ?? null,
+    posY: row.pos_y ?? null,
   }
 }
 
