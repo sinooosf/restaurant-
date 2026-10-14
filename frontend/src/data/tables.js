@@ -71,6 +71,10 @@ export function tableIdFromPath(pathname) {
 }
 
 // What to call a table on screen.
-export function tableLabel(tableId) {
+// Pass a translate function (from useLanguage) to get it in the chosen language.
+export function tableLabel(tableId, t) {
+  if (t) {
+    return String(tableId) === HOME_TABLE_ID ? t('common.toHome') : t('common.table', { id: tableId })
+  }
   return String(tableId) === HOME_TABLE_ID ? 'To Home' : `Table ${tableId}`
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
+  Globe,
   Eye,
   EyeOff,
   LockKeyhole,
@@ -9,10 +10,13 @@ import {
   Utensils,
 } from 'lucide-react'
 import { useAdminAuth } from './AdminAuthContext'
+import { useLanguage } from '../i18n/LanguageContext'
+import { Dropdown } from './components/ui'
 
 export default function AdminLogin() {
   const { login } = useAdminAuth()
   const navigate = useNavigate()
+  const { t, lang, setLang, languages } = useLanguage()
 
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -31,7 +35,7 @@ export default function AdminLogin() {
       await login(password)
       navigate('/admin', { replace: true })
     } catch (err) {
-      setError(err.message || 'Incorrect password.')
+      setError(err.message || t('admin.login.incorrect'))
     } finally {
       setLoading(false)
     }
@@ -51,12 +55,23 @@ export default function AdminLogin() {
 
       {/* Dark cinematic overlay */}
       <div className="absolute inset-0 bg-black/65" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black via-black/55 to-black/35" />
+      <div className="absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-black via-black/55 to-black/35" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30" />
 
       {/* Red ambient light */}
-      <div className="absolute -left-40 top-1/3 h-[500px] w-[500px] rounded-full bg-red-700/20 blur-[140px]" />
-      <div className="absolute -right-40 bottom-0 h-[500px] w-[500px] rounded-full bg-red-900/20 blur-[150px]" />
+      <div className="absolute -start-40 top-1/3 h-[500px] w-[500px] rounded-full bg-red-700/20 blur-[140px]" />
+      <div className="absolute -end-40 bottom-0 h-[500px] w-[500px] rounded-full bg-red-900/20 blur-[150px]" />
+
+      {/* Language switcher */}
+      <div className="absolute end-4 top-4 z-20 sm:end-6 sm:top-6">
+        <Dropdown
+          value={lang}
+          onChange={setLang}
+          options={languages.map((language) => ({ value: language.code, label: language.name }))}
+          icon={<Globe size={17} className="text-white/80" />}
+          ariaLabel={t('admin.login.language')}
+        />
+      </div>
 
       {/* Content */}
       <div className="relative z-10 flex min-h-dvh items-center justify-center px-5 py-10">
@@ -72,41 +87,40 @@ export default function AdminLogin() {
               </div>
 
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-                Restaurant Management
+                {t('admin.login.management')}
               </span>
             </div>
 
             <h1 className="max-w-2xl font-display text-6xl font-semibold leading-[0.95] tracking-tight">
-              Your restaurant.
+              {t('admin.login.heroLine1')}
               <br />
               <span className="text-[#E50914]">
-                Your control.
+                {t('admin.login.heroLine2')}
               </span>
             </h1>
 
             <p className="mt-7 max-w-lg text-base leading-7 text-white/55">
-              Manage your menu, orders, restaurant content and digital
-              experience from one powerful dashboard.
+              {t('admin.login.heroText')}
             </p>
 
             <div className="mt-10 flex items-center gap-8 text-sm text-white/50">
               <div>
                 <p className="text-2xl font-semibold text-white">24/7</p>
-                <p className="mt-1">Management</p>
+                <p className="mt-1">{t('admin.login.stat1')}</p>
               </div>
 
               <div className="h-10 w-px bg-white/10" />
 
               <div>
-                <p className="text-2xl font-semibold text-white">Fast</p>
-                <p className="mt-1">Order control</p>
+                <p className="text-2xl font-semibold text-white">{t('admin.login.stat2Value')}</p>
+                <p className="mt-1">{t('admin.login.stat2')}</p>
               </div>
 
               <div className="h-10 w-px bg-white/10" />
 
               <div>
-                <p className="text-2xl font-semibold text-white">Secure</p>
-                <p className="mt-1">Admin access</p>
+                <p className="text-2xl font-semibold text-white">{t('admin.login.stat3Value')}</p>
+                <p className="mt-1">{t('admin.login.stat3')}</p>
               </div>
             </div>
           </section>
@@ -132,11 +146,11 @@ export default function AdminLogin() {
 
                     <div>
                       <p className="font-display text-lg font-semibold">
-                        Restaurant
+                        {t('admin.login.brand')}
                       </p>
 
                       <p className="text-[10px] uppercase tracking-[0.2em] text-white/35">
-                        Admin Portal
+                        {t('admin.login.portal')}
                       </p>
                     </div>
 
@@ -154,11 +168,11 @@ export default function AdminLogin() {
                 {/* Heading */}
                 <div>
                   <h2 className="font-display text-3xl font-semibold tracking-tight">
-                    Welcome back
+                    {t('admin.login.welcome')}
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-white/45">
-                    Sign in to access your restaurant dashboard.
+                    {t('admin.login.subtitle')}
                   </p>
                 </div>
 
@@ -172,14 +186,14 @@ export default function AdminLogin() {
                     htmlFor="admin-password"
                     className="mb-2 block text-xs font-medium uppercase tracking-wider text-white/55"
                   >
-                    Admin password
+                    {t('admin.login.password')}
                   </label>
 
                   <div className="relative">
 
                     <LockKeyhole
                       size={18}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+                      className="absolute start-4 top-1/2 -translate-y-1/2 text-white/30"
                     />
 
                     <input
@@ -190,20 +204,20 @@ export default function AdminLogin() {
                         setPassword(event.target.value)
                         if (error) setError('')
                       }}
-                      placeholder="Enter your password"
+                      placeholder={t('admin.login.placeholder')}
                       autoFocus
                       autoComplete="current-password"
-                      className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.06] pl-12 pr-12 text-sm text-white outline-none transition placeholder:text-white/25 hover:border-white/20 focus:border-[#E50914]/70 focus:bg-white/[0.08] focus:ring-4 focus:ring-[#E50914]/10"
+                      className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.06] ps-12 pe-12 text-sm text-white outline-none transition placeholder:text-white/25 hover:border-white/20 focus:border-[#E50914]/70 focus:bg-white/[0.08] focus:ring-4 focus:ring-[#E50914]/10"
                     />
 
                     <button
                       type="button"
                       onClick={() => setShowPassword((value) => !value)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 transition hover:text-white"
+                      className="absolute end-4 top-1/2 -translate-y-1/2 text-white/30 transition hover:text-white"
                       aria-label={
                         showPassword
-                          ? 'Hide password'
-                          : 'Show password'
+                          ? t('admin.login.hide')
+                          : t('admin.login.show')
                       }
                     >
                       {showPassword ? (
@@ -235,15 +249,15 @@ export default function AdminLogin() {
                     {loading ? (
                       <>
                         <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        Checking access...
+                        {t('admin.login.checking')}
                       </>
                     ) : (
                       <>
-                        Enter dashboard
+                        {t('admin.login.enter')}
 
                         <ArrowRight
                           size={17}
-                          className="transition-transform duration-300 group-hover:translate-x-1"
+                          className="transition-transform duration-300 group-hover:translate-x-1 rtl:-scale-x-100 rtl:group-hover:-translate-x-1"
                         />
                       </>
                     )}
@@ -254,7 +268,7 @@ export default function AdminLogin() {
                 {/* Security */}
                 <div className="mt-7 flex items-center justify-center gap-2 text-[11px] text-white/25">
                   <ShieldCheck size={13} />
-                  Protected administrator access
+                  {t('admin.login.protected')}
                 </div>
 
               </div>
@@ -262,7 +276,7 @@ export default function AdminLogin() {
 
             {/* Bottom text */}
             <p className="mt-5 text-center text-[11px] text-white/25">
-              Authorized restaurant staff only
+              {t('admin.login.staffOnly')}
             </p>
 
           </section>

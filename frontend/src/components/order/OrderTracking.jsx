@@ -1,12 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, X } from 'lucide-react'
 import { useOrder } from '../../context/OrderContext'
-import { tableLabel } from '../../data/tables'
+import { useLanguage } from '../../i18n/LanguageContext'
 
-const STAGE_LABELS = {
-  preparing: 'Preparing',
-  almost: 'Almost done',
-  ready: 'Ready',
+const STAGE_KEYS = {
+  preparing: 'order.stage.preparing',
+  almost: 'order.stage.almost',
+  ready: 'order.stage.ready',
 }
 
 export default function OrderTracking() {
@@ -44,6 +44,7 @@ function TrackingSheet({
   cancel,
   finishOrder,
 }) {
+  const { t, formatMoney, itemName, tableLabel } = useLanguage()
   const isCancelled = order.status === 'cancelled'
   // "completed" is the staff closing a ready order — to the customer it is still "ready".
   const isReady = order.status === 'ready' || order.status === 'completed'
@@ -60,18 +61,18 @@ function TrackingSheet({
   const canModifyOrder = order.status === 'preparing'
 
   const subtitle = isCancelled
-    ? 'Order cancelled'
+    ? t('order.sub.cancelled')
     : isReady
-      ? 'Order ready'
-      : 'Order in progress'
+      ? t('order.sub.ready')
+      : t('order.sub.progress')
 
   const title = isCancelled
-    ? 'Your order was cancelled'
+    ? t('order.title.cancelled')
     : isReady
-      ? "It's ready!"
+      ? t('order.title.ready')
       : order.status === 'almost'
-        ? 'Almost done!'
-        : 'Your food is on the way'
+        ? t('order.title.almost')
+        : t('order.title.progress')
 
   return (
     <motion.div
@@ -109,17 +110,16 @@ function TrackingSheet({
             </div>
 
             <p className="text-sm leading-relaxed text-cream/60">
-              The restaurant cancelled this order. You can close this
-              screen and place a new order whenever you like.
+              {t('order.cancelledText')}
             </p>
           </div>
         ) : (
           <div className="relative mt-8 px-2">
 
-            <div className="absolute left-2 right-2 top-3 h-1 rounded-full bg-line" />
+            <div className="absolute inset-x-2 top-3 h-1 rounded-full bg-line" />
 
             <div
-              className="absolute left-2 top-3 h-1 rounded-full bg-emerald-500 transition-all duration-700"
+              className="absolute start-2 top-3 h-1 rounded-full bg-emerald-500 transition-all duration-700"
               style={{
                 width: `calc(${fillPercent}% * (100% - 1rem) / 100%)`,
               }}
@@ -155,7 +155,7 @@ function TrackingSheet({
                           : 'text-cream/40'
                       }`}
                     >
-                      {STAGE_LABELS[stage]}
+                      {t(STAGE_KEYS[stage])}
                     </span>
                   </div>
                 )
@@ -179,18 +179,18 @@ function TrackingSheet({
               className="flex justify-between gap-3 text-sm text-cream/80"
             >
               <span className="truncate">
-                {line.quantity} &times; {line.name}
+                {line.quantity} &times; {itemName(line)}
               </span>
 
               <span className="shrink-0">
-                {line.unitPrice * line.quantity} DH
+                {formatMoney(line.unitPrice * line.quantity)}
               </span>
             </div>
           ))}
 
           <div className="mt-2 flex justify-between border-t border-line pt-2 text-sm font-semibold text-cream">
-            <span>Total</span>
-            <span>{order.total} DH</span>
+            <span>{t('order.total')}</span>
+            <span>{formatMoney(order.total)}</span>
           </div>
         </div>
 
@@ -206,7 +206,7 @@ function TrackingSheet({
               onClick={finishOrder}
               className="w-full rounded-full bg-maroon py-3 text-sm font-semibold text-cream transition hover:bg-maroon-bright"
             >
-              {isReady ? 'DONE' : 'CLOSE'}
+              {isReady ? t('order.done') : t('order.close')}
             </button>
           </div>
         ) : (
@@ -223,7 +223,7 @@ function TrackingSheet({
                   : 'cursor-not-allowed border-line/50 text-cream/20'
               }`}
             >
-              Cancel order
+              {t('order.cancel')}
             </button>
 
             {/* ADD MORE */}
@@ -237,7 +237,7 @@ function TrackingSheet({
                   : 'cursor-not-allowed bg-ink text-cream/20'
               }`}
             >
-              Add more
+              {t('order.addMore')}
             </button>
 
           </div>

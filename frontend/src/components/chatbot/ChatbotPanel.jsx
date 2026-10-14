@@ -6,13 +6,8 @@ const ChatbotAvatar = '/bot.png'
 import { useCart } from '../../context/CartContext'
 import FadeImage from '../ui/FadeImage'
 import { getFinalPrice } from '../../data/menu'
-import { QUICK_QUESTIONS, getBotResponse } from './chatbotResponses'
-
-const GREETING = {
-  id: 'greeting',
-  from: 'bot',
-  text: "Hi! I'm Sinoo 👋 Ask me anything about the menu.",
-}
+import { useLanguage } from '../../i18n/LanguageContext'
+import { quickQuestions, getBotResponse } from './chatbotResponses'
 
 // If anything inside the chat ever throws, only the chat is dropped (and the
 // panel simply closes) — the menu and the customer's cart keep working
@@ -46,7 +41,10 @@ export default function ChatbotPanel({
   onClose,
   onNavigateToCategory,
 }) {
-  const [messages, setMessages] = useState([GREETING])
+  const { t, lang } = useLanguage()
+  // The greeting is stored as a marker so it always shows in the chosen language.
+  const greeting = { id: 'greeting', from: 'bot', text: t('chat.greeting') }
+  const [messages, setMessages] = useState([{ id: 'greeting', from: 'bot', greeting: true }])
   const [draft, setDraft] = useState('')
   const { addItem } = useCart()
   const scrollRef = useRef(null)
@@ -94,10 +92,10 @@ export default function ChatbotPanel({
 
       let response
       try {
-        response = getBotResponse(userText)
+        response = getBotResponse(userText, lang)
       } catch (error) {
         console.error('Chatbot could not answer:', error)
-        response = { text: 'Sorry, I had trouble with that. Please try another question.' }
+        response = { text: t('chat.crash') }
       }
 
       const botMessage = {
@@ -134,7 +132,7 @@ export default function ChatbotPanel({
   }
 
   function handleClear() {
-    setMessages([GREETING])
+    setMessages([{ id: 'greeting', from: 'bot', greeting: true }])
   }
 
   return (
@@ -160,10 +158,10 @@ export default function ChatbotPanel({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close chat"
+          aria-label={t('chat.close')}
           className="flex h-9 w-9 items-center justify-center rounded-full text-cream/80 transition hover:bg-white/10 hover:text-cream"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={20} className="rtl:-scale-x-100" />
         </button>
 
         <div className="relative">
@@ -171,26 +169,26 @@ export default function ChatbotPanel({
 
           <img
             src={ChatbotAvatar}
-            alt="Chatbot Avatar"
+            alt={t('chat.avatar')}
             className="relative h-14 w-14 object-contain"
           />
         </div>
 
         <div className="min-w-0 flex-1">
           <p className="font-display text-base tracking-wide text-cream">
-            CHAT BOT
+            {t('chat.header')}
           </p>
 
           <p className="truncate text-[11px] text-cream/50">
-            A simple assistant for quick questions
+            {t('chat.subheader')}
           </p>
         </div>
 
         <button
           type="button"
           onClick={handleClear}
-          aria-label="Start a new chat"
-          title="Start a new chat"
+          aria-label={t('chat.new')}
+          title={t('chat.new')}
           className="group flex h-9 w-9 items-center justify-center rounded-full text-cream/60 transition hover:bg-white/10 hover:text-cream"
         >
           <RotateCcw
@@ -208,7 +206,7 @@ export default function ChatbotPanel({
         {messages.map((message) => (
           <ChatBubble
             key={message.id}
-            message={message}
+            message={message.greeting ? greeting : message}
             onAdd={addItem}
             onView={onNavigateToCategory}
           />
@@ -217,7 +215,7 @@ export default function ChatbotPanel({
 
       {/* QUICK QUESTIONS */}
       <div className="relative z-10 no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
-        {QUICK_QUESTIONS.map((question) => (
+        {quickQuestions(lang).map((question) => (
           <button
             key={question}
             type="button"
@@ -238,16 +236,16 @@ export default function ChatbotPanel({
           type="text"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Ask about the menu..."
+          placeholder={t('chat.placeholder')}
           className="min-w-0 flex-1 rounded-full border border-red-300/10 bg-white/10 px-4 py-3 text-sm text-cream placeholder:text-cream/35 transition focus:border-red-400/30 focus:bg-white/15 focus:outline-none"
         />
 
         <button
           type="submit"
-          aria-label="Send message"
+          aria-label={t('chat.send')}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-700 text-cream shadow-[0_0_20px_rgba(180,20,35,0.3)] transition hover:bg-red-600 active:scale-95"
         >
-          <Send size={17} />
+          <Send size={17} className="rtl:-scale-x-100" />
         </button>
       </form>
     </motion.div>
@@ -257,6 +255,7 @@ export default function ChatbotPanel({
 }
 
 function ChatBubble({ message, onAdd, onView }) {
+  const { t, formatMoney, itemName } = useLanguage()
   const isUser = message.from === 'user'
 
   return (
@@ -277,7 +276,7 @@ function ChatBubble({ message, onAdd, onView }) {
         <div className="relative shrink-0">
           <img
             src={ChatbotAvatar}
-            alt="Chatbot Avatar"
+            alt={t('chat.avatar')}
             className="relative h-8 w-8"
           />
         </div>
@@ -287,8 +286,8 @@ function ChatBubble({ message, onAdd, onView }) {
       <div
         className={`max-w-[75%] rounded-2xl border px-3.5 py-2.5 text-sm text-cream shadow-lg ${
           isUser
-            ? 'rounded-br-sm border-red-400/20 bg-red-700/80'
-            : 'rounded-bl-sm border-white/10 bg-black/30'
+            ? 'rounded-ee-sm border-red-400/20 bg-red-700/80'
+            : 'rounded-es-sm border-white/10 bg-black/30'
         }`}
       >
 
@@ -317,17 +316,17 @@ function ChatBubble({ message, onAdd, onView }) {
                   >
                     <FadeImage
                       src={item.image}
-                      alt={item.name}
+                      alt={itemName(item)}
                       className="h-10 w-10 shrink-0 rounded-lg"
                     />
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold">
-                        {item.name}
+                        {itemName(item)}
                       </p>
 
                       <p className="text-[11px] text-ink/60">
-                        {getFinalPrice(item)} DH
+                        {formatMoney(getFinalPrice(item))}
                       </p>
                     </div>
 
@@ -338,7 +337,7 @@ function ChatBubble({ message, onAdd, onView }) {
                       }
                       className="rounded-full border border-ink/20 px-2 py-1 text-[11px] font-medium transition hover:bg-ink/5"
                     >
-                      View
+                      {t('chat.view')}
                     </button>
 
                     <button
@@ -346,7 +345,7 @@ function ChatBubble({ message, onAdd, onView }) {
                       onClick={() => onAdd(item.id)}
                       className="rounded-full bg-red-700 px-2.5 py-1 text-[11px] font-medium text-cream transition hover:bg-red-600"
                     >
-                      Add
+                      {t('chat.add')}
                     </button>
                   </div>
                 ))}

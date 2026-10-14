@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { getItemsForCategory } from '../../data/menu'
 import FadeImage from '../ui/FadeImage'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 // All animations live here so you don't need to touch index.css.
 // (Your index.css already shortens animations for people who
@@ -37,19 +38,22 @@ export default function CategoryList({
   activeCategoryId,
   onSelect,
 }) {
+  const { t, categoryName } = useLanguage()
   const scrollRef = useRef(null)
   const itemRefs = useRef({})
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
+  // "start" / "end" = left / right in English and French, right / left in Arabic.
+  const [canScrollStart, setCanScrollStart] = useState(false)
+  const [canScrollEnd, setCanScrollEnd] = useState(false)
 
   const updateScrollIndicators = () => {
     const el = scrollRef.current
     if (!el) return
 
-    setCanScrollLeft(el.scrollLeft > 5)
-    setCanScrollRight(
-      el.scrollLeft + el.clientWidth < el.scrollWidth - 5
-    )
+    // scrollLeft is negative in right-to-left, so measure the distance
+    // travelled from the start edge instead.
+    const travelled = Math.abs(el.scrollLeft)
+    setCanScrollStart(travelled > 5)
+    setCanScrollEnd(travelled + el.clientWidth < el.scrollWidth - 5)
   }
 
   useEffect(() => {
@@ -73,10 +77,8 @@ export default function CategoryList({
     const node = itemRefs.current[activeCategoryId]
     if (!container || !node) return
 
-    const target =
-      node.offsetLeft - container.clientWidth / 2 + node.clientWidth / 2
-
-    container.scrollTo({ left: target, behavior: 'smooth' })
+    // scrollIntoView works the same in left-to-right and right-to-left.
+    node.scrollIntoView?.({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [activeCategoryId])
 
   return (
@@ -86,11 +88,11 @@ export default function CategoryList({
       {/* Section heading */}
       <div className="mb-2 text-center short:hidden">
         <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-maroon-bright">
-          Browse
+          {t('cat.browse')}
         </p>
 
         <h2 className="font-display text-2xl leading-none text-cream">
-          Categories
+          {t('cat.title')}
         </h2>
 
         <div className="mx-auto mt-2 h-[3px] w-12 rounded-full bg-gradient-to-r from-transparent via-maroon-bright to-transparent" />
@@ -98,17 +100,17 @@ export default function CategoryList({
 
       {/* Categories wrapper */}
       <div className="relative -mx-4">
-        {/* Left fade */}
+        {/* Start fade */}
         <div
-          className={`pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 bg-gradient-to-r from-ink via-ink/70 to-transparent transition-opacity duration-300 ${
-            canScrollLeft ? 'opacity-100' : 'opacity-0'
+          className={`pointer-events-none absolute bottom-0 start-0 top-0 z-10 w-10 bg-gradient-to-r rtl:bg-gradient-to-l from-ink via-ink/70 to-transparent transition-opacity duration-300 ${
+            canScrollStart ? 'opacity-100' : 'opacity-0'
           }`}
         />
 
-        {/* Right fade */}
+        {/* End fade */}
         <div
-          className={`pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-10 bg-gradient-to-l from-ink via-ink/70 to-transparent transition-opacity duration-300 ${
-            canScrollRight ? 'opacity-100' : 'opacity-0'
+          className={`pointer-events-none absolute bottom-0 end-0 top-0 z-10 w-10 bg-gradient-to-l rtl:bg-gradient-to-r from-ink via-ink/70 to-transparent transition-opacity duration-300 ${
+            canScrollEnd ? 'opacity-100' : 'opacity-0'
           }`}
         />
 
@@ -166,7 +168,7 @@ export default function CategoryList({
                   >
                     <FadeImage
                       src={category.image}
-                      alt={category.name}
+                      alt={categoryName(category)}
                       className="h-full w-full"
                     />
                   </div>
@@ -181,7 +183,7 @@ export default function CategoryList({
                         : 'text-cream/70 group-hover:text-cream'
                     }`}
                   >
-                    {category.name}
+                    {categoryName(category)}
                   </p>
 
                   <span
@@ -191,7 +193,7 @@ export default function CategoryList({
                         : 'bg-white/5 text-cream/40'
                     }`}
                   >
-                    {count} {count === 1 ? 'dish' : 'dishes'}
+                    {t('common.dishes', { count })}
                   </span>
                 </div>
 

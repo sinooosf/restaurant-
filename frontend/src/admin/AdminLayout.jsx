@@ -10,13 +10,14 @@ import {
 } from 'lucide-react'
 import { useAdminAuth } from './AdminAuthContext'
 import { AdminShellProvider, useAdminShell } from './AdminShellContext'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const NAV_ITEMS = [
-  { to: '/admin', label: 'Overview', icon: House, end: true },
-  { to: '/admin/orders', label: 'Orders', icon: ClipboardList, badge: true },
-  { to: '/admin/menu', label: 'Menu', icon: Utensils },
-  { to: '/admin/tables', label: 'Tables', icon: Armchair },
-  { to: '/admin/chatbot', label: 'Chatbot', icon: MessageSquareMore },
+  { to: '/admin', labelKey: 'admin.layout.nav.overview', icon: House, end: true },
+  { to: '/admin/orders', labelKey: 'admin.layout.nav.orders', icon: ClipboardList, badge: true },
+  { to: '/admin/menu', labelKey: 'admin.layout.nav.menu', icon: Utensils },
+  { to: '/admin/tables', labelKey: 'admin.layout.nav.tables', icon: Armchair },
+  { to: '/admin/chatbot', labelKey: 'admin.layout.nav.chatbot', icon: MessageSquareMore },
 ]
 
 export default function AdminLayout() {
@@ -37,6 +38,7 @@ function Shell() {
   const { logout } = useAdminAuth()
   const { summary, navOpen, setNavOpen } = useAdminShell()
   const { pathname } = useLocation()
+  const { t } = useLanguage()
 
   // Close the slide-over menu after choosing a page (small screens).
   useEffect(() => {
@@ -59,13 +61,13 @@ function Shell() {
       {/* SIDEBAR                                                       */}
       {/* ------------------------------------------------------------ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col overflow-hidden border-r border-[#3a0d11]/70 bg-gradient-to-b from-[#0d0d10] via-[#0b0b0d] to-[#0b0809] transition-transform duration-300 lg:translate-x-0 ${
-          navOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 start-0 z-40 flex w-[232px] flex-col overflow-hidden border-e border-[#3a0d11]/70 bg-gradient-to-b from-[#0d0d10] via-[#0b0b0d] to-[#0b0809] transition-transform duration-300 lg:translate-x-0 rtl:lg:translate-x-0 ${
+          navOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
         }`}
       >
         {/* Red ribbon decoration at the bottom */}
         <svg
-          className="pointer-events-none absolute bottom-0 left-0 h-[52%] w-full"
+          className="pointer-events-none absolute bottom-0 start-0 h-[52%] w-full rtl:-scale-x-100"
           viewBox="0 0 232 420"
           preserveAspectRatio="none"
           fill="none"
@@ -93,7 +95,7 @@ function Shell() {
 
         {/* Navigation */}
         <nav className="relative mt-4 flex flex-col gap-2 px-3">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, end, badge }) => (
+          {NAV_ITEMS.map(({ to, labelKey, icon: Icon, end, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -101,7 +103,7 @@ function Shell() {
               className={({ isActive }) =>
                 `group flex items-center gap-3.5 rounded-xl px-5 py-3.5 text-[15px] font-medium transition ${
                   isActive
-                    ? 'bg-gradient-to-r from-[#d9151f] to-[#c4121c] text-white shadow-[0_8px_24px_rgba(217,21,31,0.35)]'
+                    ? 'bg-gradient-to-r rtl:bg-gradient-to-l from-[#d9151f] to-[#c4121c] text-white shadow-[0_8px_24px_rgba(217,21,31,0.35)]'
                     : 'text-white/75 hover:bg-white/[0.05] hover:text-white'
                 }`
               }
@@ -109,7 +111,7 @@ function Shell() {
               {({ isActive }) => (
                 <>
                   <Icon size={21} strokeWidth={1.8} />
-                  <span className="flex-1">{label}</span>
+                  <span className="flex-1">{t(labelKey)}</span>
 
                   {badge && summary.pendingCount > 0 && (
                     <span
@@ -134,7 +136,7 @@ function Shell() {
             className="flex w-full items-center gap-3.5 rounded-xl px-5 py-3.5 text-[15px] font-medium text-white/80 transition hover:bg-white/[0.07] hover:text-white"
           >
             <LogOut size={21} strokeWidth={1.8} />
-            Logout
+            {t('admin.layout.logout')}
           </button>
         </div>
       </aside>
@@ -142,7 +144,7 @@ function Shell() {
       {/* ------------------------------------------------------------ */}
       {/* PAGE                                                          */}
       {/* ------------------------------------------------------------ */}
-      <main className="min-h-dvh px-4 pb-10 pt-6 sm:px-6 lg:ml-[232px] lg:px-7 xl:px-8">
+      <main className="min-h-dvh px-4 pb-10 pt-6 sm:px-6 lg:ms-[232px] lg:px-7 xl:px-8">
         <Outlet />
       </main>
     </div>

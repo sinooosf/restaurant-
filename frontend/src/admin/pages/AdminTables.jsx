@@ -13,6 +13,7 @@ import {
   Trash2,
   UsersRound,
 } from 'lucide-react'
+import { useLanguage } from '../../i18n/LanguageContext'
 import { useAdminAuth } from '../AdminAuthContext'
 import {
   adminCreateTable,
@@ -39,10 +40,10 @@ import { clockTime } from '../components/format'
 const POLL_MS = 5000
 
 const STATE = {
-  available: { label: 'Available', border: '#12c27a', badge: 'bg-[#0f5a3a] text-[#7df0b8]', dot: 'bg-emerald-500' },
-  occupied: { label: 'Occupied', border: '#f0222c', badge: 'bg-[#8a0f17] text-[#ffc9cc]', dot: 'bg-[#f0222c]' },
-  cleaning: { label: 'Cleaning', border: '#ffa726', badge: 'bg-[#8a4b0f] text-[#ffd9a8]', dot: 'bg-amber-500' },
-  out_of_service: { label: 'Out of Service', border: '#6f6f78', badge: 'bg-[#2a2b31] text-[#d6d6db]', dot: 'bg-zinc-500' },
+  available: { labelKey: 'admin.tables.state.available', border: '#12c27a', badge: 'bg-[#0f5a3a] text-[#7df0b8]', dot: 'bg-emerald-500' },
+  occupied: { labelKey: 'admin.tables.state.occupied', border: '#f0222c', badge: 'bg-[#8a0f17] text-[#ffc9cc]', dot: 'bg-[#f0222c]' },
+  cleaning: { labelKey: 'admin.tables.state.cleaning', border: '#ffa726', badge: 'bg-[#8a4b0f] text-[#ffd9a8]', dot: 'bg-amber-500' },
+  out_of_service: { labelKey: 'admin.tables.state.out_of_service', border: '#6f6f78', badge: 'bg-[#2a2b31] text-[#d6d6db]', dot: 'bg-zinc-500' },
 }
 
 // Tables live in the dining area, below the kitchen wall.
@@ -67,6 +68,7 @@ function defaultPosition(index, total) {
 
 export default function AdminTables() {
   const { password } = useAdminAuth()
+  const { t, lang, tableLabel } = useLanguage()
 
   const [tables, setTables] = useState(null)
   const [error, setError] = useState('')
@@ -91,10 +93,10 @@ export default function AdminTables() {
     return () => clearInterval(timer)
   }, [load])
 
-  const floor = useMemo(() => (tables || []).filter((t) => t.kind !== 'home'), [tables])
-  const homeLink = (tables || []).find((t) => t.kind === 'home')
+  const floor = useMemo(() => (tables || []).filter((tb) => tb.kind !== 'home'), [tables])
+  const homeLink = (tables || []).find((tb) => tb.kind === 'home')
 
-  const count = (state) => floor.filter((t) => t.state === state).length
+  const count = (state) => floor.filter((tb) => tb.state === state).length
   const pct = (n) => (floor.length ? Math.round((n / floor.length) * 100) : 0)
 
   const positionOf = (table, index) =>
@@ -129,10 +131,10 @@ export default function AdminTables() {
     return ok
   }
 
-  const menuTable = menu ? floor.find((t) => t.id === menu.id) : null
+  const menuTable = menu ? floor.find((tb) => tb.id === menu.id) : null
 
   function removeTable(table) {
-    if (!window.confirm(`Remove ${table.label}? Its QR link will stop working.`)) return
+    if (!window.confirm(t('admin.tables.confirmRemove', { table: tableLabel(table.id) }))) return
     setMenu(null)
     run(() => adminDeleteTable(password, table.id))
   }
@@ -141,8 +143,8 @@ export default function AdminTables() {
     <div className="space-y-6">
       <PageTop
         icon={<Armchair size={34} />}
-        title="Tables"
-        subtitle="Manage your restaurant tables and their current status."
+        title={t('admin.tables.title')}
+        subtitle={t('admin.tables.subtitle')}
       />
 
       <ErrorBanner message={error} onClose={() => setError('')} />
@@ -154,23 +156,23 @@ export default function AdminTables() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard icon={<Armchair size={26} />} tone="red" label="Total Tables" value={floor.length} sub="in restaurant" />
-            <StatCard icon={<UsersRound size={26} />} tone="green" label="Occupied Tables" value={count('occupied')} sub={`${pct(count('occupied'))}%`} />
-            <StatCard icon={<Clock3 size={26} />} tone="orange" label="Available Tables" value={count('available')} sub={`${pct(count('available'))}%`} />
-            <StatCard icon={<CircleX size={26} />} tone="gray" label="Out of Service" value={count('out_of_service')} sub={`${pct(count('out_of_service'))}%`} />
+            <StatCard icon={<Armchair size={26} />} tone="red" label={t('admin.tables.total')} value={floor.length} sub={t('admin.tables.inRestaurant')} />
+            <StatCard icon={<UsersRound size={26} />} tone="green" label={t('admin.tables.occupiedTables')} value={count('occupied')} sub={`${pct(count('occupied'))}%`} />
+            <StatCard icon={<Clock3 size={26} />} tone="orange" label={t('admin.tables.availableTables')} value={count('available')} sub={`${pct(count('available'))}%`} />
+            <StatCard icon={<CircleX size={26} />} tone="gray" label={t('admin.tables.state.out_of_service')} value={count('out_of_service')} sub={`${pct(count('out_of_service'))}%`} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
             {/* The floor takes the whole left side */}
             <Card className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle icon={<LayoutGrid size={22} />} title="Restaurant Floor" />
+                <CardTitle icon={<LayoutGrid size={22} />} title={t('admin.tables.floor')} />
                 <div className="flex flex-wrap items-center gap-2">
                   <GhostButton className="h-10" onClick={() => setDialog('links')}>
-                    <Link2 size={15} /> QR Links
+                    <Link2 size={15} /> {t('admin.tables.qrLinks')}
                   </GhostButton>
                   <PrimaryButton className="h-10" onClick={() => setDialog('add')}>
-                    <Plus size={16} /> Add Table
+                    <Plus size={16} /> {t('admin.tables.addTable')}
                   </PrimaryButton>
                 </div>
               </div>
@@ -179,11 +181,11 @@ export default function AdminTables() {
                 <div className="flex flex-wrap items-center gap-4">
                   {Object.entries(STATE).map(([key, s]) => (
                     <span key={key} className="flex items-center gap-1.5">
-                      <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} /> {s.label}
+                      <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} /> {t(s.labelKey)}
                     </span>
                   ))}
                 </div>
-                <span className="text-white/40">Drag a table to move it · Double-click or right-click for options</span>
+                <span className="text-white/40">{t('admin.tables.dragHint')}</span>
               </div>
 
               <Floor
@@ -215,39 +217,39 @@ export default function AdminTables() {
             {/* Right column */}
             <div className="space-y-4">
               <Card className="p-5">
-                <CardTitle icon={<Armchair size={22} />} title="Table Status" />
+                <CardTitle icon={<Armchair size={22} />} title={t('admin.tables.statusPanel')} />
                 <ul className="mt-3 divide-y divide-white/[0.06]">
-                  {floor.map((t) => {
-                    const s = STATE[t.state]
+                  {floor.map((tb) => {
+                    const s = STATE[tb.state]
                     return (
-                      <li key={t.id}>
+                      <li key={tb.id}>
                         <button
                           type="button"
-                          onClick={() => setHighlightId(t.id)}
-                          className={`flex w-full items-center gap-3 rounded-lg px-1 py-3 text-left transition hover:bg-white/[0.04] ${t.id === highlightId ? 'bg-white/[0.05]' : ''}`}
+                          onClick={() => setHighlightId(tb.id)}
+                          className={`flex w-full items-center gap-3 rounded-lg px-1 py-3 text-start transition hover:bg-white/[0.04] ${tb.id === highlightId ? 'bg-white/[0.05]' : ''}`}
                         >
                           <span className={`h-3 w-3 rounded-full ${s.dot}`} />
-                          <span className="w-[62px] text-sm text-white">{t.label}</span>
+                          <span className="w-[62px] text-sm text-white">{tableLabel(tb.id)}</span>
                           <span className="flex w-9 items-center gap-1 text-xs text-white/55">
-                            <UsersRound size={13} /> {t.seats}
+                            <UsersRound size={13} /> {tb.seats}
                           </span>
-                          <span className={`min-w-[92px] rounded-full px-3 py-1 text-center text-xs font-medium ${s.badge}`}>{s.label}</span>
-                          <span className="flex-1 text-right text-xs text-white/45">
-                            {t.order ? clockTime(t.order.createdAt) : ''}
+                          <span className={`min-w-[92px] rounded-full px-3 py-1 text-center text-xs font-medium ${s.badge}`}>{t(s.labelKey)}</span>
+                          <span className="flex-1 text-end text-xs text-white/45">
+                            {tb.order ? clockTime(tb.order.createdAt, lang) : ''}
                           </span>
-                          <ChevronRight size={15} className="text-white/45" />
+                          <ChevronRight size={15} className="text-white/45 rtl:-scale-x-100" />
                         </button>
                       </li>
                     )
                   })}
-                  {floor.length === 0 && <li className="py-8 text-center text-sm text-white/40">No tables yet — add your first one.</li>}
+                  {floor.length === 0 && <li className="py-8 text-center text-sm text-white/40">{t('admin.tables.empty')}</li>}
                 </ul>
 
                 {homeLink && (
                   <div className="mt-2 flex items-center gap-3 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/[0.05] px-3 py-3">
                     <span className="h-3 w-3 rounded-full bg-amber-500" />
-                    <span className="flex-1 text-sm text-white">To Home</span>
-                    <span className="text-xs text-white/55">{homeLink.openOrders} in progress</span>
+                    <span className="flex-1 text-sm text-white">{t('common.toHome')}</span>
+                    <span className="text-xs text-white/55">{t('admin.tables.inProgress', { count: homeLink.openOrders })}</span>
                   </div>
                 )}
               </Card>
@@ -260,7 +262,7 @@ export default function AdminTables() {
 
       {dialog === 'add' && (
         <AddTableModal
-          nextId={String(Math.max(0, ...floor.map((t) => parseInt(t.id, 10) || 0)) + 1)}
+          nextId={String(Math.max(0, ...floor.map((tb) => parseInt(tb.id, 10) || 0)) + 1)}
           onClose={() => setDialog(null)}
           onSave={async (table) => {
             const ok = await run(() => adminCreateTable(password, table))
@@ -282,11 +284,13 @@ export default function AdminTables() {
 /* ------------------------------------------------------------------ */
 
 function Floor({ tables, positionOf, highlightId, onMove, onDrop, onMenu, menu, menuContent }) {
+  const { t } = useLanguage()
   const ref = useRef(null)
 
   return (
     <div
       ref={ref}
+      dir="ltr" // the floor plan is a physical map: saved positions never mirror
       className="relative mt-4 h-[640px] select-none overflow-hidden rounded-xl border border-white/[0.1]"
       style={{
         // Dark tiled floor
@@ -313,7 +317,7 @@ function Floor({ tables, positionOf, highlightId, onMove, onDrop, onMenu, menu, 
 
       {/* Entrance */}
       <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
-        <span className="mb-1 text-[11px] tracking-widest text-white/55">↑ ENTRANCE</span>
+        <span className="mb-1 text-[11px] tracking-widest text-white/55">↑ {t('admin.tables.entrance')}</span>
         <div className="h-[10px] w-40 rounded-t-md border border-b-0 border-amber-700/60 bg-gradient-to-b from-[#7a5230] to-[#4b2f19]" />
       </div>
 
@@ -325,6 +329,7 @@ function Floor({ tables, positionOf, highlightId, onMove, onDrop, onMenu, menu, 
 // A believable kitchen: tiled back wall, fridge, hood + stove with burners,
 // sink, a wooden prep island and a lit pass-through window to the dining room.
 function Kitchen() {
+  const { t } = useLanguage()
   const steel = 'linear-gradient(135deg, #c9ced6 0%, #8c929c 45%, #b7bcc5 100%)'
 
   return (
@@ -344,7 +349,7 @@ function Kitchen() {
 
       {/* Sign */}
       <div className="absolute left-1/2 top-1.5 -translate-x-1/2 rounded bg-[#1b1b1e] px-3 py-0.5 text-[10px] font-bold tracking-[0.35em] text-white/85 shadow">
-        KITCHEN
+        {t('admin.tables.kitchen')}
       </div>
 
       {/* Fridge */}
@@ -390,7 +395,7 @@ function Kitchen() {
       {/* Pass-through window (lit) */}
       <div className="absolute bottom-[26px] right-3 h-[70px] w-[13%] rounded-md border-2 border-[#4a3320] bg-gradient-to-b from-amber-300/90 to-amber-600/70 shadow-[0_0_24px_rgba(255,170,60,0.55)]">
         <div className="absolute inset-x-0 bottom-1 mx-auto h-2 w-3/4 rounded-sm bg-black/25" />
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-semibold tracking-wider text-amber-200">PASS</span>
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-semibold tracking-wider text-amber-200">{t('admin.tables.pass')}</span>
       </div>
 
       {/* Counter edge + floor line */}
@@ -401,6 +406,7 @@ function Kitchen() {
 }
 
 function DraggableTable({ table, pos, highlighted, floorRef, onMove, onDrop, onMenu }) {
+  const { t, tableLabel } = useLanguage()
   const drag = useRef(null)
   const [dragging, setDragging] = useState(false)
 
@@ -478,7 +484,7 @@ function DraggableTable({ table, pos, highlighted, floorRef, onMove, onDrop, onM
       }}
       role="button"
       tabIndex={0}
-      aria-label={`${table.label}, ${s.label}. Drag to move, double-click for options.`}
+      aria-label={t('admin.tables.tableAria', { table: tableLabel(table.id), state: t(s.labelKey) })}
       className={`absolute -translate-x-1/2 -translate-y-1/2 touch-none ${dragging ? 'z-30 cursor-grabbing' : 'z-10 cursor-grab'}`}
       style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: box, height: box }}
     >
@@ -525,19 +531,21 @@ function DraggableTable({ table, pos, highlighted, floorRef, onMove, onDrop, onM
 
 // Positions the options popup next to where the click happened.
 function MenuPopup({ menu, floorRef, children }) {
+  const { dir } = useLanguage()
   const width = 236
   const box = floorRef.current?.getBoundingClientRect()
   const left = clamp(menu.x + 8, 8, (box?.width || 800) - width - 8)
   const top = clamp(menu.y + 8, 8, (box?.height || 600) - 290)
 
   return (
-    <div className="absolute z-40" style={{ left, top, width }}>
+    <div dir={dir} className="absolute z-40" style={{ left, top, width }}>
       {children}
     </div>
   )
 }
 
 function TableMenu({ table, busy, onSeats, onStatus, onRemove, onClose }) {
+  const { t, tableLabel } = useLanguage()
   const ref = useRef(null)
   useClickOutside(ref, onClose, true)
 
@@ -556,18 +564,18 @@ function TableMenu({ table, busy, onSeats, onStatus, onRemove, onClose }) {
       className="fade-up rounded-xl border border-white/12 bg-[#151518] p-3 shadow-2xl shadow-black/70"
     >
       <div className="flex items-center justify-between px-1 pb-2">
-        <span className="text-sm font-semibold text-white">{table.label}</span>
-        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${s.badge}`}>{s.label}</span>
+        <span className="text-sm font-semibold text-white">{tableLabel(table.id)}</span>
+        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${s.badge}`}>{t(s.labelKey)}</span>
       </div>
 
       <div className="flex items-center justify-between rounded-lg bg-white/[0.05] px-3 py-2">
-        <span className="text-xs text-white/70">Places</span>
+        <span className="text-xs text-white/70">{t('admin.tables.places')}</span>
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             disabled={busy || table.seats <= 1}
             onClick={() => onSeats(table.seats - 1)}
-            aria-label="Fewer places"
+            aria-label={t('admin.tables.fewerPlaces')}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
           >
             <Minus size={14} />
@@ -577,7 +585,7 @@ function TableMenu({ table, busy, onSeats, onStatus, onRemove, onClose }) {
             type="button"
             disabled={busy || table.seats >= 20}
             onClick={() => onSeats(table.seats + 1)}
-            aria-label="More places"
+            aria-label={t('admin.tables.morePlaces')}
             className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
           >
             <Plus size={14} />
@@ -588,16 +596,16 @@ function TableMenu({ table, busy, onSeats, onStatus, onRemove, onClose }) {
       {table.state !== 'occupied' && (
         <div className="mt-2 grid grid-cols-1 gap-1">
           {[
-            ['auto', 'Available'],
-            ['cleaning', 'Cleaning'],
-            ['out_of_service', 'Out of Service'],
+            ['auto', t('admin.tables.state.available')],
+            ['cleaning', t('admin.tables.state.cleaning')],
+            ['out_of_service', t('admin.tables.state.out_of_service')],
           ].map(([value, label]) => (
             <button
               key={value}
               type="button"
               disabled={busy}
               onClick={() => onStatus(value)}
-              className={`rounded-lg px-3 py-1.5 text-left text-xs transition ${
+              className={`rounded-lg px-3 py-1.5 text-start text-xs transition ${
                 table.override === value ? 'bg-[#d9151f] text-white' : 'text-white/80 hover:bg-white/[0.08]'
               }`}
             >
@@ -613,7 +621,7 @@ function TableMenu({ table, busy, onSeats, onStatus, onRemove, onClose }) {
         onClick={onRemove}
         className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-red-400 transition hover:bg-red-500/10 disabled:opacity-35"
       >
-        <Trash2 size={14} /> Remove table
+        <Trash2 size={14} /> {t('admin.tables.removeTable')}
       </button>
     </div>
   )
@@ -624,12 +632,13 @@ function TableMenu({ table, busy, onSeats, onStatus, onRemove, onClose }) {
 /* ------------------------------------------------------------------ */
 
 function AddTableModal({ nextId, onClose, onSave }) {
+  const { t } = useLanguage()
   const [id, setId] = useState(nextId)
   const [seats, setSeats] = useState(4)
   const [saving, setSaving] = useState(false)
 
   return (
-    <Modal title="Add a table" subtitle="Its ordering link works as soon as you save." onClose={onClose}>
+    <Modal title={t('admin.tables.addTitle')} subtitle={t('admin.tables.addSubtitle')} onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={async (event) => {
@@ -640,16 +649,16 @@ function AddTableModal({ nextId, onClose, onSave }) {
         }}
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Table number" hint="Used in the link: /table/6">
+          <Field label={t('admin.tables.tableNumber')} hint={t('admin.tables.tableNumberHint')}>
             <input className="input" required value={id} onChange={(e) => setId(e.target.value)} />
           </Field>
-          <Field label="Places">
+          <Field label={t('admin.tables.places')}>
             <input className="input" type="number" min="1" max="20" value={seats} onChange={(e) => setSeats(e.target.value)} />
           </Field>
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? 'Adding…' : 'Add table'}</PrimaryButton>
+          <GhostButton onClick={onClose}>{t('admin.tables.cancel')}</GhostButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? t('admin.tables.adding') : t('admin.tables.addButton')}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -657,10 +666,11 @@ function AddTableModal({ nextId, onClose, onSave }) {
 }
 
 function LinksModal({ tables, onClose }) {
+  const { t, tableLabel } = useLanguage()
   const [copied, setCopied] = useState('')
 
   const rows = [
-    ...tables.map((t) => ({ key: t.id, label: t.label, path: `/table/${t.id}` })),
+    ...tables.map((tb) => ({ key: tb.id, label: tableLabel(tb.id), path: `/table/${tb.id}` })),
     // The special link, always last: orders to take home (no table).
     { key: 'home', label: 'ToHomeOrder', path: '/ToHomeOrder', special: true },
   ]
@@ -672,12 +682,12 @@ function LinksModal({ tables, onClose }) {
       setCopied(row.key)
       setTimeout(() => setCopied(''), 1500)
     } catch {
-      window.prompt('Copy this link:', url)
+      window.prompt(t('admin.tables.copyPrompt'), url)
     }
   }
 
   return (
-    <Modal wide title="Ordering links" subtitle="Turn each link into a QR code and put it on the matching table." onClose={onClose}>
+    <Modal wide title={t('admin.tables.linksTitle')} subtitle={t('admin.tables.linksSubtitle')} onClose={onClose}>
       <ul className="divide-y divide-white/[0.06]">
         {rows.map((row) => (
           <li key={row.key} className="flex items-center gap-3 py-3">
@@ -687,12 +697,12 @@ function LinksModal({ tables, onClose }) {
             <code className="min-w-0 flex-1 truncate text-xs text-white/55">
               {window.location.origin}{row.path}
             </code>
-            {row.special && <span className="hidden text-[11px] text-amber-400/80 sm:block">orders without a table</span>}
+            {row.special && <span className="hidden text-[11px] text-amber-400/80 sm:block">{t('admin.tables.noTableOrders')}</span>}
             <button type="button" onClick={() => copy(row)} className="flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-1.5 text-xs text-white transition hover:bg-white/[0.14]">
-              <Copy size={13} /> {copied === row.key ? 'Copied' : 'Copy'}
+              <Copy size={13} /> {copied === row.key ? t('admin.tables.copied') : t('admin.tables.copy')}
             </button>
-            <a href={row.path} target="_blank" rel="noreferrer" aria-label={`Open ${row.label}`} className="text-white/50 hover:text-white">
-              <ExternalLink size={15} />
+            <a href={row.path} target="_blank" rel="noreferrer" aria-label={t('admin.tables.open', { label: row.label })} className="text-white/50 hover:text-white">
+              <ExternalLink size={15} className="rtl:-scale-x-100" />
             </a>
           </li>
         ))}

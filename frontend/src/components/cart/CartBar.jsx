@@ -3,11 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Minus, Plus, ShoppingCart } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 import FadeImage from '../ui/FadeImage'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 export default function CartBar({
   onPlaceOrder,
   placing,
-  placeLabel = 'PLACE THE ORDER',
+  placeLabel,
   // The list of dishes can be opened from outside (the cart button in the
   // header). If TablePage doesn't pass these, it opens/closes by itself.
   expanded: expandedProp,
@@ -25,6 +26,7 @@ export default function CartBar({
     removeItem,
   } = useCart()
 
+  const { t, formatMoney, itemName } = useLanguage()
   const [internalExpanded, setInternalExpanded] = useState(false)
   const barRef = useRef(null)
 
@@ -88,10 +90,10 @@ export default function CartBar({
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <div className="mb-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+            <div className="mb-3 max-h-52 space-y-2 overflow-y-auto pe-1">
               {totalCount === 0 ? (
                 <p className="rounded-xl bg-panel-light px-3 py-4 text-center text-sm text-cream/50">
-                  Your order is empty. Add something tasty from the menu!
+                  {t('cart.empty')}
                 </p>
               ) : (
                 lines.map(({ item, quantity, lineTotal }) => (
@@ -101,17 +103,17 @@ export default function CartBar({
                   >
                     <FadeImage
                       src={item.image}
-                      alt={item.name}
+                      alt={itemName(item)}
                       className="h-11 w-11 shrink-0 rounded-lg"
                     />
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-cream">
-                        {item.name}
+                        {itemName(item)}
                       </p>
 
                       <p className="text-xs text-cream/50">
-                        {lineTotal} DH
+                        {formatMoney(lineTotal)}
                       </p>
                     </div>
 
@@ -119,7 +121,7 @@ export default function CartBar({
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
-                        aria-label={`Remove one ${item.name}`}
+                        aria-label={t('item.removeOne', { name: itemName(item) })}
                         className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
                       >
                         <Minus size={12} />
@@ -132,7 +134,7 @@ export default function CartBar({
                       <button
                         type="button"
                         onClick={() => addItem(item.id)}
-                        aria-label={`Add another ${item.name}`}
+                        aria-label={t('item.addAnother', { name: itemName(item) })}
                         className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-cream"
                       >
                         <Plus size={12} />
@@ -156,23 +158,23 @@ export default function CartBar({
         <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-cream">
           <ShoppingCart size={16} />
 
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-maroon-bright px-1 text-[10px] font-semibold">
+          <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-maroon-bright px-1 text-[10px] font-semibold">
             {totalCount}
           </span>
         </span>
 
-        <span className="flex-1 text-left">
+        <span className="flex-1 text-start">
           <span className="block text-sm font-semibold text-cream">
-            Your order
+            {t('cart.title')}
           </span>
 
           <span className="block text-xs text-cream/50">
-            {totalCount} {totalCount === 1 ? 'item' : 'items'}
+            {t('common.items', { count: totalCount })}
           </span>
         </span>
 
         <span className="text-sm font-semibold text-cream">
-          {totalPrice} DH
+          {formatMoney(totalPrice)}
         </span>
 
         <ChevronDown
@@ -194,7 +196,7 @@ export default function CartBar({
             : 'cursor-not-allowed bg-ink text-cream/30'
         }`}
       >
-        {placing ? 'PLEASE WAIT…' : placeLabel}
+        {placing ? t('cart.wait') : placeLabel || t('cart.place')}
       </button>
     </div>
   )

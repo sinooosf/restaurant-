@@ -7,6 +7,8 @@ import { preloadImages } from './utils/preloadImages'
 import { HOME_PATH, loadTables } from './data/tables'
 import { loadChatbotFaqs } from './components/chatbot/chatbotResponses'
 import IntroSplash from './components/layout/IntroSplash'
+import LanguageChooser from './components/layout/LanguageChooser'
+import { LanguageProvider, useLanguage } from './i18n/LanguageContext'
 import TablePage from './pages/TablePage'
 import TableNotFound from './pages/TableNotFound'
 import { AdminAuthProvider } from './admin/AdminAuthContext'
@@ -31,7 +33,18 @@ export default function App() {
 // constrained "phone shell" (see the outer div below) so it looks right
 // both on an actual phone and when shown on a laptop during a demo.
 function CustomerApp() {
+  return (
+    <LanguageProvider scope="customer">
+      <CustomerShell />
+    </LanguageProvider>
+  )
+}
+
+function CustomerShell() {
+  const { setLang } = useLanguage()
   const [introDone, setIntroDone] = useState(false)
+  // The customer picks English / French / Arabic after the intro.
+  const [languageChosen, setLanguageChosen] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
@@ -53,6 +66,13 @@ function CustomerApp() {
     <div className="relative mx-auto h-dvh w-full max-w-md overflow-hidden bg-ink sm:my-4 sm:h-[calc(100dvh-2rem)] sm:rounded-[2.5rem] sm:shadow-2xl sm:shadow-black/60 sm:ring-1 sm:ring-line">
       {!introDone || !dataLoaded ? (
         <IntroSplash onFinish={() => setIntroDone(true)} />
+      ) : !languageChosen ? (
+        <LanguageChooser
+          onContinue={(code) => {
+            setLang(code)
+            setLanguageChosen(true)
+          }}
+        />
       ) : (
         <CartProvider>
           <OrderProvider>
@@ -74,6 +94,7 @@ function CustomerApp() {
 // since this is meant to be used on a laptop or tablet in the restaurant.
 function AdminApp() {
   return (
+    <LanguageProvider scope="admin">
     <AdminAuthProvider>
       <Routes>
         <Route path="login" element={<AdminLogin />} />
@@ -86,5 +107,6 @@ function AdminApp() {
         </Route>
       </Routes>
     </AdminAuthProvider>
+    </LanguageProvider>
   )
 }

@@ -38,7 +38,7 @@ import {
   Spinner,
   StatCard,
 } from '../components/ui'
-import { money } from '../components/format'
+import { useLanguage } from '../../i18n/LanguageContext'
 import FadeImage from '../../components/ui/FadeImage'
 
 // Each category gets its own color badge (cycled).
@@ -66,6 +66,7 @@ const finalPrice = (item) =>
 
 export default function AdminMenu() {
   const { password } = useAdminAuth()
+  const { t, lang, formatMoney, itemName, categoryName } = useLanguage()
   const [params, setParams] = useSearchParams()
 
   const [items, setItems] = useState(null)
@@ -108,16 +109,22 @@ export default function AdminMenu() {
     return (id) => map[id] || BADGES[0]
   }, [categories])
 
-  const nameOf = (id) => categories.find((c) => c.id === id)?.name || id
+  const nameOf = (id) => {
+    const category = categories.find((c) => c.id === id)
+    return category ? categoryName(category) : id
+  }
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
     return (items || []).filter(
       (item) =>
         (activeCategory === 'all' || item.categoryId === activeCategory) &&
-        (!term || item.name.toLowerCase().includes(term))
+        (!term ||
+          item.name.toLowerCase().includes(term) ||
+          itemName(item).toLowerCase().includes(term))
     )
-  }, [items, search, activeCategory])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, search, activeCategory, lang])
 
   async function patchItem(item, changes) {
     setSavingId(item.id)
@@ -143,7 +150,7 @@ export default function AdminMenu() {
   }
 
   async function handleDelete(item) {
-    if (!window.confirm(`Delete "${item.name}" from the menu?`)) return
+    if (!window.confirm(t('admin.menu.confirmDeleteItem', { name: itemName(item) }))) return
     try {
       await adminDeleteMenuItem(password, item.id)
       setItems((prev) => prev.filter((c) => c.id !== item.id))
@@ -187,7 +194,7 @@ export default function AdminMenu() {
   }
 
   async function handleDeleteCategory(category) {
-    if (!window.confirm(`Delete the "${category.name}" category?`)) return
+    if (!window.confirm(t('admin.menu.confirmDeleteCategory', { name: categoryName(category) }))) return
     try {
       await adminDeleteCategory(password, category.id)
       setCategories((prev) => prev.filter((c) => c.id !== category.id))
@@ -203,8 +210,8 @@ export default function AdminMenu() {
     <div className="space-y-6">
       <PageTop
         icon={<Utensils size={34} />}
-        title="Menu"
-        subtitle="Manage your food and drink items, categories and availability."
+        title={t('admin.menu.title')}
+        subtitle={t('admin.menu.subtitle')}
       />
 
       <ErrorBanner message={error} onClose={() => setError('')} />
@@ -216,10 +223,10 @@ export default function AdminMenu() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr]">
-            <StatCard icon={<Utensils size={26} />} tone="red" label="Total Items" value={items.length} sub="food & drinks" />
-            <StatCard icon={<ToggleRight size={28} />} tone="green" label="Available Items" value={items.filter((i) => i.available).length} sub="in stock" />
-            <StatCard icon={<Tag size={26} />} tone="orange" label="Categories" value={categories.length} sub="total" />
-            <StatCard icon={<Star size={26} fill="currentColor" />} tone="purple" label="Best Sellers" value={items.filter((i) => i.isBest).length} sub="most ordered" />
+            <StatCard icon={<Utensils size={26} />} tone="red" label={t('admin.menu.totalItems')} value={items.length} sub={t('admin.menu.totalItemsSub')} />
+            <StatCard icon={<ToggleRight size={28} />} tone="green" label={t('admin.menu.availableItems')} value={items.filter((i) => i.available).length} sub={t('admin.menu.availableItemsSub')} />
+            <StatCard icon={<Tag size={26} />} tone="orange" label={t('admin.menu.categories')} value={categories.length} sub={t('admin.menu.categoriesSub')} />
+            <StatCard icon={<Star size={26} fill="currentColor" />} tone="purple" label={t('admin.menu.bestSellers')} value={items.filter((i) => i.isBest).length} sub={t('admin.menu.bestSellersSub')} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
@@ -227,18 +234,18 @@ export default function AdminMenu() {
             <Card className="p-5">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative min-w-[200px] flex-1">
-                  <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/45" />
+                  <Search size={16} className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-white/45" />
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search for items..."
-                    className="h-11 w-full rounded-xl border border-white/[0.09] bg-[#121215] pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#f0222c]/60"
+                    placeholder={t('admin.menu.searchPlaceholder')}
+                    className="h-11 w-full rounded-xl border border-white/[0.09] bg-[#121215] ps-10 pe-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#f0222c]/60"
                   />
                 </div>
                 <Dropdown
                   value={activeCategory}
                   onChange={setActiveCategory}
-                  options={[{ value: 'all', label: 'All Categories' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+                  options={[{ value: 'all', label: t('admin.menu.allCategories') }, ...categories.map((c) => ({ value: c.id, label: categoryName(c) }))]}
                   icon={<LayoutGrid size={16} className="text-white/70" />}
                   className="w-[190px]"
                   align="left"
@@ -247,12 +254,12 @@ export default function AdminMenu() {
                   className="h-11"
                   onClick={() => setEditing({ ...EMPTY_ITEM, categoryId: categories[0]?.id || '' })}
                 >
-                  <Plus size={18} /> Add Item
+                  <Plus size={18} /> {t('admin.menu.addItem')}
                 </PrimaryButton>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {[{ id: 'all', name: 'All' }, ...categories].map((c) => (
+                {[{ id: 'all', name: t('admin.menu.all') }, ...categories].map((c) => (
                   <button
                     key={c.id}
                     type="button"
@@ -263,21 +270,21 @@ export default function AdminMenu() {
                         : 'bg-white/[0.06] text-white/75 hover:bg-white/[0.11]'
                     }`}
                   >
-                    {c.name}
+                    {c.id === 'all' ? c.name : categoryName(c)}
                   </button>
                 ))}
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {visible.length === 0 && (
-                  <p className="col-span-full py-16 text-center text-white/40">No items found.</p>
+                  <p className="col-span-full py-16 text-center text-white/40">{t('admin.menu.noItems')}</p>
                 )}
 
                 {visible.map((item) => (
                   <ItemCard
                     key={item.id}
                     item={item}
-                    categoryName={nameOf(item.categoryId)}
+                    categoryLabel={nameOf(item.categoryId)}
                     badge={badgeFor(item.categoryId)}
                     saving={savingId === item.id}
                     onToggle={() => patchItem(item, { available: !item.available })}
@@ -293,10 +300,10 @@ export default function AdminMenu() {
               <Card className="p-5">
                 <CardTitle
                   icon={<List size={22} />}
-                  title="Categories"
+                  title={t('admin.menu.categories')}
                   action={
                     <button type="button" onClick={() => setAddingCategory(true)} className="text-xs font-medium text-[#f0222c] hover:text-[#ff5a63]">
-                      + Add Category
+                      {t('admin.menu.addCategoryLink')}
                     </button>
                   }
                 />
@@ -307,20 +314,20 @@ export default function AdminMenu() {
                       <button
                         type="button"
                         onClick={() => setActiveCategory(c.id)}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-start"
                       >
                         <FadeImage src={c.image} className="h-11 w-11 shrink-0 rounded-full bg-white/5" imgClassName="object-contain p-1" />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-white">{c.name}</span>
-                          <span className="block text-xs text-white/45">{countIn(c.id)} items</span>
+                          <span className="block truncate text-sm font-medium text-white">{categoryName(c)}</span>
+                          <span className="block text-xs text-white/45">{t('admin.menu.itemCount', { count: countIn(c.id) })}</span>
                         </span>
                       </button>
                       {countIn(c.id) === 0 && (
-                        <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={`Delete ${c.name}`} className="text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100">
+                        <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })} className="text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100">
                           <Trash2 size={15} />
                         </button>
                       )}
-                      <ChevronRight size={16} className="text-white/50" />
+                      <ChevronRight size={16} className="text-white/50 rtl:-scale-x-100" />
                     </li>
                   ))}
                 </ul>
@@ -329,8 +336,8 @@ export default function AdminMenu() {
               <Card className="flex items-center gap-4 p-5">
                 <ChefHat size={38} className="shrink-0 text-[#f0222c]" strokeWidth={1.4} />
                 <div>
-                  <p className="text-[15px] font-semibold text-white">Keep your menu fresh</p>
-                  <p className="mt-1 text-xs text-white/50">Add new items, update prices and keep your customers happy!</p>
+                  <p className="text-[15px] font-semibold text-white">{t('admin.menu.keepFresh')}</p>
+                  <p className="mt-1 text-xs text-white/50">{t('admin.menu.keepFreshText')}</p>
                 </div>
               </Card>
 
@@ -355,31 +362,33 @@ export default function AdminMenu() {
   )
 }
 
-function ItemCard({ item, categoryName, badge, saving, onToggle, onEdit, onDelete }) {
+function ItemCard({ item, categoryLabel, badge, saving, onToggle, onEdit, onDelete }) {
+  const { t, formatMoney, itemName } = useLanguage()
   const discounted = Number(item.discountPercent) > 0
+  const name = itemName(item)
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3 transition ${item.available ? '' : 'opacity-60'}`}>
       <div className="relative">
-        <FadeImage src={item.image} alt={item.name} className="h-[120px] w-full rounded-xl bg-white/5" />
+        <FadeImage src={item.image} alt={name} className="h-[120px] w-full rounded-xl bg-white/5" />
         {item.isBest && (
-          <span className="absolute left-2 top-2 rounded-md bg-[#d9151f] px-2 py-0.5 text-[11px] font-medium text-white">
-            Best Seller
+          <span className="absolute start-2 top-2 rounded-md bg-[#d9151f] px-2 py-0.5 text-[11px] font-medium text-white">
+            {t('admin.menu.bestBadge')}
           </span>
         )}
         {discounted && (
-          <span className="absolute right-2 top-2 rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-black">
+          <span className="absolute end-2 top-2 rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-black">
             -{item.discountPercent}%
           </span>
         )}
       </div>
 
-      <h3 className="mt-3 truncate text-[15px] font-semibold text-white">{item.name}</h3>
-      <span className={`mt-2 inline-block rounded-md px-2.5 py-0.5 text-[11px] font-medium ${badge}`}>{categoryName}</span>
+      <h3 className="mt-3 truncate text-[15px] font-semibold text-white">{name}</h3>
+      <span className={`mt-2 inline-block rounded-md px-2.5 py-0.5 text-[11px] font-medium ${badge}`}>{categoryLabel}</span>
 
       <p className="mt-2.5 text-[17px] font-bold text-white">
-        {money(finalPrice(item))}
-        {discounted && <span className="ml-2 text-xs font-normal text-white/40 line-through">{money(item.price)}</span>}
+        {formatMoney(finalPrice(item))}
+        {discounted && <span className="ms-2 text-xs font-normal text-white/40 line-through" dir="auto">{formatMoney(item.price)}</span>}
       </p>
 
       <div className="mt-3 flex items-center gap-2">
@@ -389,16 +398,16 @@ function ItemCard({ item, categoryName, badge, saving, onToggle, onEdit, onDelet
           disabled={saving}
           role="switch"
           aria-checked={item.available}
-          aria-label={`${item.name} availability`}
+          aria-label={t('admin.menu.availabilityAria', { name })}
           className={`relative h-[22px] w-10 shrink-0 rounded-full transition ${item.available ? 'bg-emerald-500' : 'bg-white/20'}`}
         >
-          <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${item.available ? 'left-[21px]' : 'left-[3px]'}`} />
+          <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${item.available ? 'start-[21px]' : 'start-[3px]'}`} />
         </button>
-        <span className="flex-1 text-xs text-white/70">{item.available ? 'Available' : 'Hidden'}</span>
-        <button type="button" onClick={onEdit} aria-label={`Edit ${item.name}`} className="text-white/55 transition hover:text-white">
+        <span className="flex-1 text-xs text-white/70">{item.available ? t('admin.menu.available') : t('admin.menu.hidden')}</span>
+        <button type="button" onClick={onEdit} aria-label={t('admin.menu.editAria', { name })} className="text-white/55 transition hover:text-white">
           <Pencil size={16} />
         </button>
-        <button type="button" onClick={onDelete} aria-label={`Delete ${item.name}`} className="text-white/55 transition hover:text-red-400">
+        <button type="button" onClick={onDelete} aria-label={t('admin.menu.deleteAria', { name })} className="text-white/55 transition hover:text-red-400">
           <Trash2 size={16} />
         </button>
       </div>
@@ -407,6 +416,7 @@ function ItemCard({ item, categoryName, badge, saving, onToggle, onEdit, onDelet
 }
 
 function ItemModal({ initial, categories, onClose, onSave }) {
+  const { t, categoryName } = useLanguage()
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
@@ -420,48 +430,48 @@ function ItemModal({ initial, categories, onClose, onSave }) {
   }
 
   return (
-    <Modal title={editingExisting ? 'Edit item' : 'Add item'} onClose={onClose}>
+    <Modal title={editingExisting ? t('admin.menu.editItemTitle') : t('admin.menu.addItemTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Name">
+        <Field label={t('admin.menu.fieldName')}>
           <input className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Category">
+          <Field label={t('admin.menu.fieldCategory')}>
             <select className="input" required value={form.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
               {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>{categoryName(c)}</option>
               ))}
             </select>
           </Field>
-          <Field label="Price (DH)">
+          <Field label={t('admin.menu.fieldPrice')}>
             <input className="input" type="number" min="0" required value={form.price} onChange={(e) => set('price', e.target.value)} />
           </Field>
         </div>
 
-        <Field label="Image path" hint="Example: /images/menu/pizza/pizza1.jpg">
+        <Field label={t('admin.menu.fieldImage')} hint={t('admin.menu.fieldImageHint')}>
           <input className="input" required value={form.image} onChange={(e) => set('image', e.target.value)} />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Discount %">
+          <Field label={t('admin.menu.fieldDiscount')}>
             <input className="input" type="number" min="0" max="90" value={form.discountPercent} onChange={(e) => set('discountPercent', e.target.value)} />
           </Field>
           <div className="flex flex-col justify-end gap-2 pb-1 text-sm text-white/80">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={form.isBest} onChange={(e) => set('isBest', e.target.checked)} className="accent-[#d9151f]" />
-              Best seller
+              {t('admin.menu.fieldBest')}
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={form.available} onChange={(e) => set('available', e.target.checked)} className="accent-[#d9151f]" />
-              Available
+              {t('admin.menu.available')}
             </label>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</PrimaryButton>
+          <GhostButton onClick={onClose}>{t('admin.menu.cancel')}</GhostButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? t('admin.menu.saving') : t('admin.menu.save')}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -469,13 +479,14 @@ function ItemModal({ initial, categories, onClose, onSave }) {
 }
 
 const CATEGORY_IMAGES = [
-  ['/images/categories/pizza.png', 'Pizza'],
-  ['/images/categories/sandwich.png', 'Sandwich'],
-  ['/images/categories/soup.png', 'Soup'],
-  ['/images/categories/drink.png', 'Drink'],
+  ['/images/categories/pizza.png', 'admin.menu.pictureShape.pizza'],
+  ['/images/categories/sandwich.png', 'admin.menu.pictureShape.sandwich'],
+  ['/images/categories/soup.png', 'admin.menu.pictureShape.soup'],
+  ['/images/categories/drink.png', 'admin.menu.pictureShape.drink'],
 ]
 
 function CategoryModal({ onClose, onSave }) {
+  const { t } = useLanguage()
   const [name, setName] = useState('')
   const [image, setImage] = useState(CATEGORY_IMAGES[0][0])
   const [saving, setSaving] = useState(false)
@@ -488,31 +499,31 @@ function CategoryModal({ onClose, onSave }) {
   }
 
   return (
-    <Modal title="Add category" onClose={onClose}>
+    <Modal title={t('admin.menu.addCategoryTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Name">
-          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Desserts" />
+        <Field label={t('admin.menu.fieldName')}>
+          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder={t('admin.menu.categoryPlaceholder')} />
         </Field>
 
-        <Field label="Picture">
+        <Field label={t('admin.menu.fieldPicture')}>
           <div className="flex gap-2">
-            {CATEGORY_IMAGES.map(([src, label]) => (
+            {CATEGORY_IMAGES.map(([src, labelKey]) => (
               <button
                 key={src}
                 type="button"
                 onClick={() => setImage(src)}
-                aria-label={label}
+                aria-label={t(labelKey)}
                 className={`h-14 w-14 rounded-xl border p-1.5 transition ${image === src ? 'border-[#f0222c] bg-[#f0222c]/10' : 'border-white/10 bg-white/[0.03]'}`}
               >
-                <img src={src} alt={label} className="h-full w-full object-contain" />
+                <img src={src} alt={t(labelKey)} className="h-full w-full object-contain" />
               </button>
             ))}
           </div>
         </Field>
 
         <div className="flex justify-end gap-2 pt-2">
-          <GhostButton onClick={onClose}>Cancel</GhostButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? 'Saving…' : 'Add category'}</PrimaryButton>
+          <GhostButton onClick={onClose}>{t('admin.menu.cancel')}</GhostButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? t('admin.menu.saving') : t('admin.menu.addCategoryBtn')}</PrimaryButton>
         </div>
       </form>
     </Modal>

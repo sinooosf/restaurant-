@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
-import { hourLabel } from './format'
+import { useLanguage } from '../../i18n/LanguageContext'
+import { hourLabel, hourLabelLong, money } from './format'
 
 // A hand-drawn SVG area chart (no chart library): today's line in red with a
 // soft fill, the previous day dashed in gray, and a tooltip that follows the
@@ -51,9 +52,12 @@ export default function SalesChart({
   metric = 'orders',
   isToday = true,
   nowHour = 23,
-  currentLabel = 'Today',
-  previousLabel = 'Yesterday',
+  currentLabel,
+  previousLabel,
 }) {
+  const { t, lang, isRTL } = useLanguage()
+  currentLabel = currentLabel ?? t('admin.common.today')
+  previousLabel = previousLabel ?? t('admin.common.yesterday')
   const [hover, setHover] = useState(null)
   const wrapRef = useRef(null)
 
@@ -109,7 +113,7 @@ export default function SalesChart({
     setHover(index)
   }
 
-  const fmt = (v) => (metric === 'revenue' ? `${Math.round(v).toLocaleString('en-US')} DH` : v)
+  const fmt = (v) => (metric === 'revenue' ? money(v, lang) : v)
 
   const hoverHour = hover === null ? null : hours[hover]
   const hoverCurrent = hover === null ? null : currentPoints[hover]
@@ -119,13 +123,15 @@ export default function SalesChart({
 
   return (
     <div>
+      {/* The plotted area always runs left to right; only the text is translated. */}
       <div
         ref={wrapRef}
+        dir="ltr"
         className="relative"
         onMouseMove={handleMove}
         onMouseLeave={() => setHover(null)}
       >
-        <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full select-none" role="img" aria-label="Sales chart">
+        <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full select-none" role="img" aria-label={t('admin.ui.salesChart')}>
           <defs>
             <linearGradient id="sales-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#f0222c" stopOpacity="0.42" />
@@ -155,7 +161,7 @@ export default function SalesChart({
               fillOpacity="0.7"
               className={hours.length > 14 && i % 2 === 1 ? 'hidden' : ''}
             >
-              {hourLabel(h)}
+              {hourLabel(h, lang)}
             </text>
           ))}
 
@@ -193,13 +199,14 @@ export default function SalesChart({
 
         {hover !== null && (
           <div
+            dir={isRTL ? 'rtl' : 'ltr'}
             className="pointer-events-none absolute z-10 min-w-[128px] -translate-x-1/2 rounded-xl border border-white/10 bg-[#17171b]/95 px-3.5 py-2.5 text-xs shadow-xl shadow-black/50"
             style={{
               left: `${(hoverX / W) * 100}%`,
               top: `calc(${(tipTop / H) * 100}% - 78px)`,
             }}
           >
-            <p className="mb-1.5 text-white/70">{hourLabel(hoverHour).replace(' ', ':00 ')}</p>
+            <p className="mb-1.5 text-white/70">{hourLabelLong(hoverHour, lang)}</p>
             {hoverCurrent && (
               <p className="flex items-center gap-2 text-white">
                 <span className="h-2 w-2 rounded-full bg-[#f0222c]" />
@@ -214,7 +221,7 @@ export default function SalesChart({
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-6 pl-2 text-[13px] text-white/75">
+      <div className="mt-2 flex items-center gap-6 ps-2 text-[13px] text-white/75">
         <span className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[#f0222c]" />
           {currentLabel}

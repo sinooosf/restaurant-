@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useAdminAuth } from '../AdminAuthContext'
 import { adminFetchOverview } from '../../services/api'
+import { useLanguage } from '../../i18n/LanguageContext'
 import SalesChart from '../components/SalesChart'
 import {
   Card,
@@ -37,6 +38,7 @@ export default function AdminOverview() {
   const [metric, setMetric] = useState('orders')
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const { t } = useLanguage()
 
   useEffect(() => {
     let cancelled = false
@@ -63,13 +65,13 @@ export default function AdminOverview() {
   }, [password, range])
 
   const isToday = range === 'today'
-  const vs = isToday ? 'vs. yesterday' : 'vs. day before'
+  const vs = isToday ? t('admin.overview.vsYesterday') : t('admin.overview.vsDayBefore')
 
   return (
     <div className="space-y-6">
       <PageTop
-        title="Overview"
-        subtitle={isToday ? "Here's what's happening at your restaurant today." : "Here's how your restaurant did yesterday."}
+        title={t('admin.overview.title')}
+        subtitle={isToday ? t('admin.overview.subtitleToday') : t('admin.overview.subtitleYesterday')}
         range={range}
         onRange={setRange}
         showBell={false}
@@ -90,6 +92,7 @@ export default function AdminOverview() {
 
 function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
   const { current, previous, popular, quick, recent } = data
+  const { t, lang, formatMoney, tableLabel, itemName } = useLanguage()
 
   const totalForBars = Math.max(1, quick.pending + quick.completed + quick.cancelled)
 
@@ -99,7 +102,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
         <StatCard
           icon={<ClipboardList size={26} />}
           tone="red"
-          label="Total Orders"
+          label={t('admin.overview.totalOrders')}
           value={current.orders}
           delta={percentChange(current.orders, previous.orders)}
           sub={vs}
@@ -107,25 +110,25 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
         <StatCard
           icon={<CircleDollarSign size={28} />}
           tone="green"
-          label="Money Made"
-          value={money(current.revenue)}
+          label={t('admin.overview.moneyMade')}
+          value={formatMoney(current.revenue)}
           delta={percentChange(current.revenue, previous.revenue)}
           sub={vs}
         />
         <StatCard
           icon={<UsersRound size={26} />}
           tone="blue"
-          label="Avg. Order Value"
-          value={money(current.avg)}
+          label={t('admin.overview.avgOrder')}
+          value={formatMoney(current.avg)}
           delta={percentChange(current.avg, previous.avg)}
           sub={vs}
         />
         <StatCard
           icon={<Star size={26} fill="currentColor" />}
           tone="purple"
-          label="Most Popular Item"
-          value={<span className="text-[22px]">{popular ? popular.name : '—'}</span>}
-          sub={popular ? `${popular.orders} order${popular.orders === 1 ? '' : 's'}` : 'No orders yet'}
+          label={t('admin.overview.popular')}
+          value={<span className="text-[22px]">{popular ? itemName(popular) : '—'}</span>}
+          sub={popular ? t('admin.overview.orderCount', { count: popular.orders }) : t('admin.overview.noOrdersYet')}
         />
       </div>
 
@@ -134,15 +137,15 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <CardTitle
             icon={<ChartNoAxesCombined size={26} />}
-            title="Sales & Orders Overview"
-            subtitle={isToday ? "Today's performance compared to the previous day." : "Yesterday's performance compared to the day before."}
+            title={t('admin.overview.salesTitle')}
+            subtitle={isToday ? t('admin.overview.salesSubToday') : t('admin.overview.salesSubYesterday')}
           />
 
           <div className="flex items-center gap-3">
             <div className="flex overflow-hidden rounded-full bg-white/[0.05] p-0.5">
               {[
-                ['orders', 'Orders'],
-                ['revenue', 'Revenue'],
+                ['orders', t('admin.overview.metricOrders')],
+                ['revenue', t('admin.overview.metricRevenue')],
               ].map(([key, label]) => (
                 <button
                   key={key}
@@ -161,8 +164,8 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
               value={range}
               onChange={setRange}
               options={[
-                { value: 'today', label: 'Today' },
-                { value: 'yesterday', label: 'Yesterday' },
+                { value: 'today', label: t('admin.common.today') },
+                { value: 'yesterday', label: t('admin.common.yesterday') },
               ]}
               className="w-[130px]"
             />
@@ -176,8 +179,8 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
             metric={metric}
             isToday={isToday}
             nowHour={data.nowHour}
-            currentLabel={isToday ? 'Today' : 'Yesterday'}
-            previousLabel={isToday ? 'Yesterday' : 'Day before'}
+            currentLabel={isToday ? t('admin.common.today') : t('admin.common.yesterday')}
+            previousLabel={isToday ? t('admin.common.yesterday') : t('admin.common.dayBefore')}
           />
         </div>
       </Card>
@@ -187,38 +190,38 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
         <Card className="p-6">
           <CardTitle
             icon={<List size={24} />}
-            title="Recent Orders"
+            title={t('admin.overview.recentOrders')}
             action={
               <Link to="/admin/orders" className="text-sm font-medium text-[#f0222c] hover:text-[#ff5a63]">
-                View all →
+                {t('admin.overview.viewAll')}
               </Link>
             }
           />
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
+            <table className="w-full min-w-[520px] text-start text-sm">
               <thead>
                 <tr className="text-[13px] text-white/50">
-                  {['#', 'Table', 'Items', 'Total', 'Time', 'Status'].map((h) => (
-                    <th key={h} className="pb-3 pr-3 font-normal">{h}</th>
+                  {['#', t('admin.overview.colTable'), t('admin.overview.colItems'), t('admin.overview.colTotal'), t('admin.overview.colTime'), t('admin.overview.colStatus')].map((h) => (
+                    <th key={h} className="pb-3 pe-3 text-start font-normal">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {recent.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-white/40">No orders yet.</td>
+                    <td colSpan={6} className="py-10 text-center text-white/40">{t('admin.overview.noOrdersYet')}</td>
                   </tr>
                 )}
                 {recent.map((order) => (
                   <tr key={order.id} className="border-t border-white/[0.06] text-white/90">
-                    <td className="py-3 pr-3 font-medium">#{order.id}</td>
-                    <td className="py-3 pr-3 text-white/70">
-                      {order.tableId === 'home' ? 'To Home' : `Table ${order.tableId}`}
+                    <td className="py-3 pe-3 font-medium">#{order.id}</td>
+                    <td className="py-3 pe-3 text-white/70">
+                      {tableLabel(order.tableId)}
                     </td>
-                    <td className="max-w-[170px] truncate py-3 pr-3 text-white/80">{itemsSummary(order)}</td>
-                    <td className="py-3 pr-3">{money(order.total)}</td>
-                    <td className="py-3 pr-3 text-white/70">{clockTime(order.createdAt)}</td>
+                    <td className="max-w-[170px] truncate py-3 pe-3 text-white/80">{itemsSummary(order, 2, lang)}</td>
+                    <td className="py-3 pe-3">{formatMoney(order.total)}</td>
+                    <td className="py-3 pe-3 text-white/70">{clockTime(order.createdAt, lang)}</td>
                     <td className="py-3"><StatusBadge status={order.status} /></td>
                   </tr>
                 ))}
@@ -228,13 +231,13 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
         </Card>
 
         <Card className="p-6">
-          <CardTitle icon={<ChartNoAxesCombined size={24} />} title="Quick Stats" />
+          <CardTitle icon={<ChartNoAxesCombined size={24} />} title={t('admin.overview.quickStats')} />
 
           <div className="mt-6 space-y-5">
             <QuickRow
               icon={<Armchair size={20} />}
               tint="bg-[#3a0d12] text-[#ff4650]"
-              label="Active Tables"
+              label={t('admin.overview.activeTables')}
               value={`${quick.activeTables} / ${quick.totalTables}`}
               pct={quick.totalTables ? (quick.activeTables / quick.totalTables) * 100 : 0}
               bar="bg-[#f0222c]"
@@ -242,7 +245,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
             <QuickRow
               icon={<Hourglass size={20} />}
               tint="bg-[#3b2a0e] text-amber-400"
-              label="Pending Orders"
+              label={t('admin.overview.pendingOrders')}
               value={quick.pending}
               pct={(quick.pending / totalForBars) * 100}
               bar="bg-amber-500"
@@ -250,7 +253,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
             <QuickRow
               icon={<ClipboardCheck size={20} />}
               tint="bg-[#0d3324] text-emerald-400"
-              label="Completed Today"
+              label={t('admin.overview.completedToday')}
               value={quick.completed}
               pct={(quick.completed / totalForBars) * 100}
               bar="bg-emerald-500"
@@ -258,7 +261,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
             <QuickRow
               icon={<XCircle size={20} />}
               tint="bg-[#3a0d12] text-[#ff4650]"
-              label="Cancelled Orders"
+              label={t('admin.overview.cancelledOrders')}
               value={quick.cancelled}
               pct={(quick.cancelled / totalForBars) * 100}
               bar="bg-[#f0222c]"
@@ -279,7 +282,7 @@ function QuickRow({ icon, tint, label, value, pct, bar }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between text-sm">
           <span className="text-white/85">{label}</span>
-          <span className="font-semibold text-white">{value}</span>
+          <span dir="ltr" className="font-semibold text-white">{value}</span>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
           <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, Math.max(pct, value ? 4 : 0))}%` }} />

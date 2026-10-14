@@ -3,6 +3,7 @@ import { Search, ShoppingCart } from 'lucide-react'
 const Logo = '/logo.png'
 const Bot = '/bot.png'
 import { useCart } from '../../context/CartContext'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 export default function Header({
   searchTerm,
@@ -13,16 +14,17 @@ export default function Header({
   searchDisabled = false,
 }) {
   const { totalCount } = useCart()
+  const { t } = useLanguage()
 
   return (
     <header className="sticky top-0 z-[60] bg-ink/95 px-4 pb-3 pt-4 backdrop-blur">
-      <div className="relative flex items-center gap-2.5 rounded-full bg-mist-800/50 px-4 py-2.5 pl-20 backdrop-blur">
+      <div className="relative flex items-center gap-2.5 rounded-full bg-mist-800/50 px-4 py-2.5 ps-20 backdrop-blur">
 
         {/* Logo */}
-        <div className="absolute left-0 top-10 z-10 -translate-y-1/2">
+        <div className="absolute start-0 top-10 z-10 -translate-y-1/2">
           <img
             src={Logo}
-            alt="Logo"
+            alt={t('header.logo')}
             className="h-20 w-auto object-contain"
           />
         </div>
@@ -42,7 +44,7 @@ export default function Header({
     onClick={searchDisabled ? undefined : onOpenSearch}
     onChange={(event) => onSearchChange(event.target.value)}
     disabled={searchDisabled}
-    placeholder={searchDisabled ? 'Search is off while you wait' : 'Search food'}
+    placeholder={searchDisabled ? t('header.searchOff') : t('header.search')}
     className="w-full bg-transparent text-sm text-cream placeholder:text-cream/40 focus:outline-none"
   />
         </div>
@@ -51,13 +53,13 @@ export default function Header({
         <button
           type="button"
           onClick={onOpenCart}
-          aria-label="Open your order"
+          aria-label={t('header.openOrder')}
           className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-panel text-cream transition hover:bg-panel-light"
         >
           <ShoppingCart size={19} />
 
           {totalCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-maroon-bright px-1 text-[11px] font-semibold text-cream">
+            <span className="absolute -end-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-maroon-bright px-1 text-[11px] font-semibold text-cream">
               {totalCount}
             </span>
           )}
@@ -67,12 +69,12 @@ export default function Header({
         <button
           type="button"
           onClick={onOpenChatbot}
-          aria-label="Open chat assistant"
+          aria-label={t('header.openChat')}
           className="shrink-0 transition hover:opacity-90"
         >
           <img
             src={Bot}
-            alt="Chatbot"
+            alt={t('header.chatbot')}
             className="h-11 w-11 rounded-full border border-line bg-panel object-cover"
           />
         </button>

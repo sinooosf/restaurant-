@@ -2,12 +2,14 @@ import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import MenuItemCard from './MenuItemCard'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 export default function SearchResultsOverlay({
   open,
   items,
   onClose,
 }) {
+  const { t } = useLanguage()
   useEffect(() => {
     if (!open) return
 
@@ -66,8 +68,8 @@ export default function SearchResultsOverlay({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close search"
-              className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-panel text-cream/70 shadow-lg transition hover:bg-panel-light hover:text-cream"
+              aria-label={t('search.close')}
+              className="absolute end-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-panel text-cream/70 shadow-lg transition hover:bg-panel-light hover:text-cream"
             >
               <X size={18} />
             </button>
@@ -100,7 +102,7 @@ export default function SearchResultsOverlay({
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <p className="font-display text-lg text-cream">
-                    Nothing found
+                    {t('search.none')}
                   </p>
                 </div>
               )}

@@ -1,6 +1,7 @@
 
 import { Utensils } from 'lucide-react'
 import MenuItemCard from './MenuItemCard'
+import { useLanguage } from '../../i18n/LanguageContext'
  
 // Local animation for the shine that sweeps across the MENU badge.
 const STYLES = `
@@ -28,6 +29,8 @@ const STYLES = `
 // last row, so the final dishes can always be scrolled fully into view
 // without ever sliding under the bar.
 export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
+  const { t } = useLanguage()
+
   return (
     <section className="flex h-full min-h-0 flex-col bg-ink px-4">
       <style>{STYLES}</style>
@@ -37,8 +40,8 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
         <div className="flex items-center gap-3">
           {/* Left line + diamond */}
           <div className="flex flex-1 items-center">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-maroon-bright/70" />
-            <span className="menu-pulse ml-1 h-1.5 w-1.5 rotate-45 bg-maroon-bright" />
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-maroon-bright/70 rtl:bg-gradient-to-l" />
+            <span className="menu-pulse ms-1 h-1.5 w-1.5 rotate-45 bg-maroon-bright" />
           </div>
  
           {/* Badge: gradient border + glow */}
@@ -56,7 +59,7 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
               />
  
               <h2 className="relative font-display text-2xl leading-none tracking-[0.3em] text-cream">
-                MENU
+                {t('menu.title')}
               </h2>
  
               <span className="relative rounded-full bg-maroon px-2 py-0.5 text-[10px] font-semibold text-cream">
@@ -67,8 +70,8 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
  
           {/* Right diamond + line */}
           <div className="flex flex-1 items-center">
-            <span className="menu-pulse mr-1 h-1.5 w-1.5 rotate-45 bg-maroon-bright" />
-            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-maroon-bright/70" />
+            <span className="menu-pulse me-1 h-1.5 w-1.5 rotate-45 bg-maroon-bright" />
+            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-maroon-bright/70 rtl:bg-gradient-to-r" />
           </div>
         </div>
       </div>
@@ -81,7 +84,7 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
       >
         {items.length === 0 ? (
           <p className="mt-10 text-center text-sm text-cream/50">
-            No dishes match that search.
+            {t('menu.noMatch')}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3">

@@ -9,6 +9,8 @@ import { useTableId } from '../hooks/useTableId'
 import { HOME_TABLE_ID } from '../data/tables'
 import { useCart } from '../context/CartContext'
 import { useOrder } from '../context/OrderContext'
+import { useLanguage } from '../i18n/LanguageContext'
+import { itemMatchesSearch } from '../i18n/menuText'
 import Header from '../components/layout/Header'
 import CategoryList from '../components/menu/CategoryList'
 import MenuSection from '../components/menu/MenuSection'
@@ -20,8 +22,20 @@ import ChatbotPanel, { ChatbotBoundary } from '../components/chatbot/ChatbotPane
 import TableNotFound from './TableNotFound'
 import { TableChecking, TableOffline } from './TableStatusScreens'
 
+// The server's error messages are written in English. Recognise the common
+// ones and show them in the customer's language; anything else gets a
+// friendly generic message.
+function friendlyOrderError(message, t) {
+  const text = String(message || '')
+  if (/not available right now/i.test(text)) return t('err.unavailable')
+  if (/already (finished|started)|no longer/i.test(text)) return t('err.finished')
+  if (/empty order|nothing to add/i.test(text)) return t('err.empty')
+  return t('err.generic')
+}
+
 export default function TablePage() {
   const { tableId, status: tableStatus, retry: retryTable } = useTableId()
+  const { t, formatMoney, itemName } = useLanguage()
   const isHome = tableId === HOME_TABLE_ID
 
   const [activeCategoryId, setActiveCategoryId] = useState(
@@ -82,7 +96,7 @@ export default function TablePage() {
   // -------------------------------------------------------------------------
 
   const searchResults = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
+    const term = searchTerm.trim()
 
     if (!term) {
       return [...MENU_ITEMS].sort(
@@ -91,9 +105,8 @@ export default function TablePage() {
     }
 
     return [...MENU_ITEMS]
-      .filter((item) =>
-        item.name.toLowerCase().includes(term)
-      )
+      // matches the English, French or Arabic name
+      .filter((item) => itemMatchesSearch(item, term))
       .sort(
         (a, b) => Number(b.isBest) - Number(a.isBest)
       )
@@ -181,9 +194,7 @@ export default function TablePage() {
       setCartOpen(false)
     } catch (error) {
       console.error('Failed to send order:', error)
-      setOrderError(
-        error?.message || 'Something went wrong. Please try again.'
-      )
+      setOrderError(friendlyOrderError(error?.message, t))
     } finally {
       setPlacing(false)
     }
@@ -243,7 +254,7 @@ export default function TablePage() {
         onToggleExpanded={() => setCartOpen((open) => !open)}
         onHeightChange={handleCartBarHeight}
         placeLabel={
-          addingToOrder ? 'ADD TO YOUR ORDER' : 'PLACE THE ORDER'
+          addingToOrder ? t('cart.addToOrder') : t('cart.place')
         }
       />
 
@@ -293,28 +304,27 @@ export default function TablePage() {
           >
             <h2 className="font-display text-xl text-cream">
               {addingToOrder
-                ? 'Add these to your order?'
-                : 'Is this your last order?'}
+                ? t('confirm.titleAdd')
+                : t('confirm.titleLast')}
             </h2>
 
             <p className="mt-2 text-sm leading-relaxed text-cream/55">
               {addingToOrder
-                ? 'These dishes will be added to the order you already placed. The kitchen sees them right away.'
+                ? t('confirm.bodyAdd')
                 : isHome
-                  ? 'This order is to take home. If you are finished ordering, confirm and we will send it to the kitchen.'
-                  : 'If you are finished ordering, confirm and we will send your order to the kitchen.'}
+                  ? t('confirm.bodyHome')
+                  : t('confirm.bodyTable')}
             </p>
 
             {/* Current order summary */}
             <div className="mt-4 rounded-2xl bg-panel-light p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-cream/60">
-                  {cart.totalCount}{' '}
-                  {cart.totalCount === 1 ? 'item' : 'items'}
+                  {t('common.items', { count: cart.totalCount })}
                 </span>
 
                 <span className="text-sm font-semibold text-cream">
-                  {cart.totalPrice} DH
+                  {formatMoney(cart.totalPrice)}
                 </span>
               </div>
 
@@ -325,11 +335,11 @@ export default function TablePage() {
                     className="flex justify-between gap-3 text-xs text-cream/45"
                   >
                     <span className="truncate">
-                      {line.quantity} × {line.item.name}
+                      {line.quantity} × {itemName(line.item)}
                     </span>
 
                     <span className="shrink-0">
-                      {line.lineTotal} DH
+                      {formatMoney(line.lineTotal)}
                     </span>
                   </div>
                 ))}
@@ -350,7 +360,7 @@ export default function TablePage() {
                 disabled={placing}
                 className="flex-1 rounded-full border border-line py-3 text-sm font-semibold text-cream/75 transition hover:bg-panel-light disabled:cursor-not-allowed disabled:opacity-40"
               >
-                NO, KEEP SHOPPING
+                {t('confirm.no')}
               </button>
 
               <button
@@ -360,10 +370,10 @@ export default function TablePage() {
                 className="flex-1 rounded-full bg-maroon py-3 text-sm font-semibold text-cream transition hover:bg-maroon-bright disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {placing
-                  ? 'SENDING…'
+                  ? t('confirm.sending')
                   : addingToOrder
-                    ? 'YES, ADD THEM'
-                    : 'YES, PLACE ORDER'}
+                    ? t('confirm.yesAdd')
+                    : t('confirm.yesPlace')}
               </button>
             </div>
           </motion.div>

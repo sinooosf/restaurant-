@@ -19,117 +19,92 @@ export async function loadChatbotFaqs() {
 // short, fixed set of restaurant questions, exactly like the "limited IA
 // for questions" label in the design. Swap this file's insides later for a
 // real backend/LLM call without touching ChatbotPanel.jsx.
-export const QUICK_QUESTIONS = [
-  "What's your name?",
-  'What are the best dishes?',
-  "What's available today?",
-  'What time do you close?',
-]
+//
+// It understands questions typed in English, French or Arabic (whatever the
+// customer chose) and always answers in the CHOSEN language.
+import { translate } from '../../i18n/translate'
+import { itemName } from '../../i18n/menuText'
 
-export function getBotResponse(rawText) {
-  const text = rawText.toLowerCase()
+export const quickQuestions = (lang = 'en') =>
+  ['name', 'best', 'available', 'hours'].map((id) => translate(lang, `chat.quick.${id}`))
 
-  if (text.includes('name')) {
-    return { text: "I'm Sinoo, this restaurant's chat assistant! \u{1F44B}" }
-  }
+// English list kept for backwards compatibility.
+export const QUICK_QUESTIONS = quickQuestions('en')
 
-  if (text.includes('help')) {
-    return {
-      text: 'I can show you today\u2019s best dishes, tell you what\u2019s available, or answer a quick question about the menu.',
+// Lowercase, drop accents (é -> e) and Arabic marks, and unify the Arabic
+// letter variants so "أفضل" and "افضل" match the same keyword.
+function normalize(text) {
+  return String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ًͯ-ٰٟـ]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[’]/g, "'")
+}
+
+// Each rule: words (any language) -> the answer. The order matters: the
+// first rule that matches wins (same order as the original English bot).
+const RULES = [
+  { id: 'name', words: ['name', 'appelle', 'ton nom', 'votre nom', 'qui es-tu', 'اسم', 'من انت'] },
+  { id: 'help', words: ['help', 'aide', 'aider', 'مساعد', 'ساعد'] },
+  { id: 'how', words: ['how are you', 'ca va', 'comment vas', 'comment allez', 'كيف حالك', 'كيفك', 'كيف الحال'] },
+  { id: 'respect', words: ['fuck'] },
+  { id: 'sorry', words: ['bad', 'mauvais', 'سيء', 'سيئ', 'وحش'] },
+  { id: 'price', words: ['expensive', 'price', 'trop cher', 'prix', 'tarif', 'سعر', 'اسعار', 'غالي', 'ثمن'] },
+  { id: 'sorry', words: ['dislike', 'hate', 'deteste', "j'aime pas", 'اكره', 'لا احب'] },
+  { id: 'love', words: ['love you', 'je t\'aime', 'je vous aime', 'احبك'] },
+  { id: 'thanks', words: ['thank', 'merci', 'شكرا', 'شكر', 'ممنون', 'مشكور'] },
+  { id: 'glad', words: ['good', 'great', 'awesome', 'super', 'genial', 'excellent', 'parfait', 'جيد', 'ممتاز', 'رائع'] },
+  { id: 'rude', words: ['rude', 'mean', 'impoli', 'méchant', 'mechant', 'وقح', 'سخيف'] },
+  { id: 'best', words: ['best', 'recommend', 'meilleur', 'conseill', 'recommand', 'favori', 'افضل', 'انصح', 'اقتراح', 'توصي'] },
+  { id: 'available', words: ['available', 'unavailable', 'out of', 'disponible', 'rupture', 'متوفر', 'متاح', 'نفد', 'نفذ'] },
+  { id: 'hours', words: ['time', 'close', 'open', 'hour', 'heure', 'ferm', 'ouvert', 'ouvre', 'horaire', 'وقت', 'اوقات', 'ساعات', 'ساعه', 'مفتوح', 'تفتح', 'تغلق', 'تقفل', 'اغلاق', 'دوام', 'مواعيد'] },
+].map((rule) => ({ ...rule, words: rule.words.map(normalize) }))
+
+export function getBotResponse(rawText, lang = 'en') {
+  const text = normalize(rawText)
+  const say = (key, params) => translate(lang, key, params)
+
+  const rule = RULES.find((candidate) => candidate.words.some((word) => text.includes(word)))
+
+  switch (rule?.id) {
+    case 'name': return { text: say('chat.r.name') }
+    case 'help': return { text: say('chat.r.help') }
+    case 'how': return { text: say('chat.r.how') }
+    case 'respect': return { text: say('chat.r.respect') }
+    case 'sorry': return { text: say('chat.r.sorry') }
+    case 'price': return { text: say('chat.r.price') }
+    case 'love': return { text: say('chat.r.love') }
+    case 'thanks': return { text: say('chat.r.thanks') }
+    case 'glad': return { text: say('chat.r.glad') }
+    case 'rude': return { text: say('chat.r.rude') }
+
+    case 'best': {
+      const best = getBestItems()
+      if (best.length === 0) return { text: say('chat.r.noBest') }
+      return { text: say('chat.r.best'), richContent: { type: 'items', items: best } }
     }
-  }
 
-  if (text.includes('how are you')) {
-    return {
-      text: 'I\u2019m just a simple chatbot, but I\u2019m doing well! Thanks for asking. \u{1F60A}',
+    case 'available': {
+      const unavailable = getUnavailableItems()
+      if (unavailable.length === 0) return { text: say('chat.r.allAvailable') }
+      const names = unavailable.map((item) => itemName(item, lang)).join(say('chat.listSeparator'))
+      return { text: say('chat.r.unavailable', { names }) }
     }
-  }
 
-  if (text.includes('fuck')) {
-    return {
-      text: 'Please be respectful. I\u2019m just a simple chatbot',
-    }
-  }
-
-  if (text.includes('bad')) {
-    return {
-      text: 'I\u2019m sorry to hear that. Is there anything I can do to help? \u{1F614}',
-    }
-  }
-
-  if (text.includes('expensive') || text.includes('price')) {
-    return {
-      text: 'Our prices are quite reasonable for the quality of food we offer!',
-    }
-  }
-
-  if (text.includes('expensive')){
-    return {
-      text: 'I understand that price can be a concern. If you want, I can help you find some of our more affordable options on the menu.',
-    }
-  }
-
-  if (text.includes('dislike') || text.includes('hate')) {
-    return { text: "I'm sorry to hear that. Is there anything I can do to help? \u{1F614}" }
-  }
-
-  if (text.includes('I love you') || text.includes('love you')) {
-    return {
-      text: 'I love you too! \u{1F60A}',
-    }
-  }
-
-  if (text.includes('thank')) {
-    return {
-      text: "You're welcome! I'm here to help. \u{1F60A}",
-    }
-  }
-
-  if (text.includes('good') || text.includes('great') || text.includes('awesome')) {
-    return {
-      text: 'I\u2019m glad you think so! \u{1F60A}',
-    }
-  }
-
-  if (text.includes('rude') || text.includes('mean')) {
-    return {
-      text: "I'm sorry if I came across that way. I'm just a simple chatbot trying to help. \u{1F614}",
-    }
-  }
-
-
-  if (text.includes('best') || text.includes('recommend')) {
-    const best = getBestItems()
-    if (best.length === 0) {
-      return { text: "Nothing is marked as a favorite right now — check out the full menu!" }
-    }
-    return {
-      text: "Here are today's favorites:",
-      richContent: { type: 'items', items: best },
-    }
-  }
-
-  if (text.includes('available') || text.includes('unavailable') || text.includes('out of')) {
-    const unavailable = getUnavailableItems()
-    if (unavailable.length === 0) {
-      return { text: 'Everything on the menu is available right now!' }
-    }
-    const names = unavailable.map((item) => item.name).join(', ')
-    return { text: `Everything is available except: ${names}.` }
-  }
-
-  if (text.includes('time') || text.includes('close') || text.includes('open') || text.includes('hour')) {
-    return { text: "We're open every day from 11:00 AM to 11:00 PM." }
+    case 'hours': return { text: say('chat.r.hours') }
+    default: break
   }
 
   // Anything the admin has added from the dashboard gets checked last, so
-  // it never overrides the built-in answers above.
-  const customMatch = CUSTOM_FAQS.find((faq) => text.includes(faq.keyword.toLowerCase()))
+  // it never overrides the built-in answers above. (These are typed by the
+  // admin in one language, so they are shown exactly as written.)
+  const customMatch = CUSTOM_FAQS.find((faq) => text.includes(normalize(faq.keyword)))
   if (customMatch) {
     return { text: customMatch.answer }
   }
 
-  return {
-    text: "I'm a simple assistant for now \u2014 try one of the quick questions below!",
-  }
+  return { text: say('chat.r.fallback') }
 }

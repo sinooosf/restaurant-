@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Calendar, ChevronDown, Menu as MenuIcon } from 'lucide-react'
+import { Bell, Calendar, ChevronDown, Globe, Menu as MenuIcon } from 'lucide-react'
 import { useAdminShell } from '../AdminShellContext'
+import { useLanguage } from '../../i18n/LanguageContext'
 import { STATUS_META, clockTime, itemsSummary, orderTableLabel } from './format'
 
 // A clock that ticks every few seconds ("14:32", 24-hour like the design).
 export function useClock() {
+  const { locale } = useLanguage()
   const read = () =>
-    new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
   const [time, setTime] = useState(read)
 
   useEffect(() => {
+    setTime(read())
     const timer = setInterval(() => setTime(read()), 5000)
     return () => clearInterval(timer)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale])
 
   return time
 }
@@ -86,7 +90,7 @@ export function IconTile({ tone = 'red', children, className = '' }) {
 export function StatCard({ icon, tone, label, value, delta, sub, children }) {
   return (
     <Card className="relative overflow-hidden px-5 py-5">
-      <div className="pointer-events-none absolute -left-8 -top-8 h-28 w-28 rounded-full bg-[#d9151f]/[0.07] blur-2xl" />
+      <div className="pointer-events-none absolute -start-8 -top-8 h-28 w-28 rounded-full bg-[#d9151f]/[0.07] blur-2xl" />
       <div className="relative flex items-center gap-4">
         <IconTile tone={tone}>{icon}</IconTile>
 
@@ -100,8 +104,10 @@ export function StatCard({ icon, tone, label, value, delta, sub, children }) {
                 delta >= 0 ? 'text-emerald-400' : 'text-red-400'
               }`}
             >
-              {delta >= 0 ? '↑' : '↓'} {delta >= 0 ? '+' : ''}
-              {delta}%
+              <span dir="ltr" className="inline-block">
+                {delta >= 0 ? '↑' : '↓'} {delta >= 0 ? '+' : ''}
+                {delta}%
+              </span>
             </p>
           )}
 
@@ -118,17 +124,19 @@ export function StatCard({ icon, tone, label, value, delta, sub, children }) {
 /* ---------------------------------------------------------------------- */
 
 export function StatusBadge({ status, className = '' }) {
+  const { t } = useLanguage()
   const meta = STATUS_META[status] || STATUS_META.completed
   return (
     <span
       className={`inline-flex min-w-[88px] items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${meta.pill} ${className}`}
     >
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   )
 }
 
 export function TablePill({ tableId }) {
+  const { tableLabel } = useLanguage()
   const isHome = String(tableId) === 'home'
   return (
     <span
@@ -136,7 +144,7 @@ export function TablePill({ tableId }) {
         isHome ? 'bg-[#8a4b0f]' : 'bg-[#5a0b10]'
       }`}
     >
-      {isHome ? 'To Home' : `Table ${tableId}`}
+      {tableLabel(tableId)}
     </span>
   )
 }
@@ -150,12 +158,13 @@ export function Spinner({ className = '' }) {
 }
 
 export function ErrorBanner({ message, onClose }) {
+  const { t } = useLanguage()
   if (!message) return null
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300">
       <span>{message}</span>
       {onClose && (
-        <button type="button" onClick={onClose} className="text-red-300/70 hover:text-red-200">
+        <button type="button" onClick={onClose} aria-label={t('admin.ui.close')} className="text-red-300/70 hover:text-red-200">
           ✕
         </button>
       )}
@@ -167,7 +176,7 @@ export function ErrorBanner({ message, onClose }) {
 /* Dropdown (the "Today", "All Status", "All Categories" pills)           */
 /* ---------------------------------------------------------------------- */
 
-export function Dropdown({ value, options, onChange, icon, className = '', align = 'right' }) {
+export function Dropdown({ value, options, onChange, icon, className = '', align = 'right', ariaLabel }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useClickOutside(ref, () => setOpen(false), open)
@@ -179,17 +188,18 @@ export function Dropdown({ value, options, onChange, icon, className = '', align
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-label={ariaLabel}
         className="flex h-11 w-full items-center gap-2.5 rounded-xl border border-white/[0.09] bg-[#121215] px-4 text-sm font-medium text-white/90 transition hover:border-white/20"
       >
         {icon}
-        <span className="flex-1 whitespace-nowrap text-left">{current.label}</span>
+        <span className="flex-1 whitespace-nowrap text-start">{current.label}</span>
         <ChevronDown size={15} className={`text-white/50 transition ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div
           className={`absolute top-full z-40 mt-2 min-w-full overflow-hidden rounded-xl border border-white/10 bg-[#141417] py-1 shadow-2xl shadow-black/60 ${
-            align === 'right' ? 'right-0' : 'left-0'
+            align === 'right' ? 'end-0' : 'start-0'
           }`}
         >
           {options.map((option) => (
@@ -200,7 +210,7 @@ export function Dropdown({ value, options, onChange, icon, className = '', align
                 onChange(option.value)
                 setOpen(false)
               }}
-              className={`block w-full whitespace-nowrap px-4 py-2 text-left text-sm transition hover:bg-white/[0.06] ${
+              className={`block w-full whitespace-nowrap px-4 py-2 text-start text-sm transition hover:bg-white/[0.06] ${
                 option.value === value ? 'text-[#ff4650]' : 'text-white/80'
               }`}
             >
@@ -217,14 +227,16 @@ export function Dropdown({ value, options, onChange, icon, className = '', align
 /* Top bar: title on the left, date picker + clock + bell on the right    */
 /* ---------------------------------------------------------------------- */
 
-const RANGE_OPTIONS = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-]
-
 export function PageTop({ icon, title, subtitle, range, onRange, showBell = true, children }) {
   const clock = useClock()
   const { setNavOpen } = useAdminShell()
+  const { t, lang, setLang, languages } = useLanguage()
+
+  const rangeOptions = [
+    { value: 'today', label: t('admin.common.today') },
+    { value: 'yesterday', label: t('admin.common.yesterday') },
+  ]
+  const languageOptions = languages.map((language) => ({ value: language.code, label: language.name }))
 
   return (
     <div className="flex items-start justify-between gap-4">
@@ -232,7 +244,7 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
         <button
           type="button"
           onClick={() => setNavOpen(true)}
-          aria-label="Open menu"
+          aria-label={t('admin.ui.openMenu')}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-white/70 lg:hidden"
         >
           <MenuIcon size={19} />
@@ -255,11 +267,20 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
           <Dropdown
             value={range}
             onChange={onRange}
-            options={RANGE_OPTIONS}
+            options={rangeOptions}
             icon={<Calendar size={17} className="text-white/80" />}
             className="hidden sm:block"
           />
         )}
+
+        <Dropdown
+          value={lang}
+          onChange={setLang}
+          options={languageOptions}
+          icon={<Globe size={17} className="text-white/80" />}
+          className="shrink-0"
+          ariaLabel={t('admin.ui.language')}
+        />
 
         <span className="hidden text-[17px] font-medium tabular-nums text-white md:block">{clock}</span>
       </div>
@@ -271,6 +292,7 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
 // them when clicked.
 function Bell_() {
   const { summary } = useAdminShell()
+  const { t, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useClickOutside(ref, () => setOpen(false), open)
@@ -280,36 +302,36 @@ function Bell_() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label="Notifications"
+        aria-label={t('admin.ui.notifications')}
         className="relative flex h-11 w-11 items-center justify-center rounded-xl text-white/85 transition hover:bg-white/[0.06]"
       >
         <Bell size={21} />
         {summary.pendingCount > 0 && (
-          <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-[#f0222c] ring-2 ring-[#09090b]" />
+          <span className="absolute end-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-[#f0222c] ring-2 ring-[#09090b]" />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#141417] shadow-2xl shadow-black/60">
+        <div className="absolute end-0 top-full z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#141417] shadow-2xl shadow-black/60">
           <p className="border-b border-white/[0.07] px-4 py-3 text-sm font-semibold text-white">
             {summary.pendingCount > 0
-              ? `${summary.pendingCount} order${summary.pendingCount === 1 ? '' : 's'} waiting`
-              : 'No orders waiting'}
+              ? t('admin.ui.ordersWaiting', { count: summary.pendingCount })
+              : t('admin.ui.noOrdersWaiting')}
           </p>
 
           <div className="max-h-72 overflow-y-auto">
             {summary.pending.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-white/40">You&apos;re all caught up.</p>
+              <p className="px-4 py-6 text-center text-sm text-white/40">{t('admin.ui.allCaughtUp')}</p>
             ) : (
               summary.pending.map((order) => (
                 <div key={order.id} className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-3 last:border-0">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-white">
-                      #{order.id} · {orderTableLabel(order)}
+                      #{order.id} · {orderTableLabel(order, lang)}
                     </p>
-                    <p className="truncate text-xs text-white/45">{itemsSummary(order)}</p>
+                    <p className="truncate text-xs text-white/45">{itemsSummary(order, 2, lang)}</p>
                   </div>
-                  <span className="text-xs text-white/40">{clockTime(order.createdAt)}</span>
+                  <span className="text-xs text-white/40">{clockTime(order.createdAt, lang)}</span>
                 </div>
               ))
             )}
@@ -325,6 +347,7 @@ function Bell_() {
 /* ---------------------------------------------------------------------- */
 
 export function Modal({ title, subtitle, onClose, children, wide = false }) {
+  const { t } = useLanguage()
   useEffect(() => {
     function onKey(event) {
       if (event.key === 'Escape') onClose()
@@ -353,7 +376,7 @@ export function Modal({ title, subtitle, onClose, children, wide = false }) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('admin.ui.close')}
             className="rounded-lg px-2 py-1 text-white/50 transition hover:bg-white/[0.07] hover:text-white"
           >
             ✕
@@ -404,26 +427,27 @@ export function GhostButton({ className = '', children, ...props }) {
 /* ---------------------------------------------------------------------- */
 
 export function VibesCard({ className = '' }) {
+  const { t } = useLanguage()
   return (
     <Card className={`relative overflow-hidden ${className}`}>
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: "url('/images/menu/pizza/pizza6.jpg')" }}
       />
-      <div className="absolute inset-0 bg-gradient-to-br from-black/85 via-black/70 to-[#3a0a0d]/70" />
-      <div className="absolute -right-6 top-4 h-28 w-28 rounded-full bg-amber-400/20 blur-2xl" />
+      <div className="absolute inset-0 bg-gradient-to-br rtl:bg-gradient-to-bl from-black/85 via-black/70 to-[#3a0a0d]/70" />
+      <div className="absolute -end-6 top-4 h-28 w-28 rounded-full bg-amber-400/20 blur-2xl" />
 
       <div className="relative flex h-full flex-col p-6">
         <span className="text-xl text-amber-400">♛</span>
-        <h3 className="mt-2 text-[22px] font-bold leading-snug text-white">Keep the good vibes</h3>
+        <h3 className="mt-2 text-[22px] font-bold leading-snug text-white">{t('admin.ui.vibesTitle')}</h3>
         <p className="mt-2 max-w-[200px] text-sm leading-relaxed text-white/60">
-          Great food, happy customers, a successful restaurant.
+          {t('admin.ui.vibesText')}
         </p>
-        <svg viewBox="0 0 120 12" className="mt-2 w-24 text-[#f0222c]" fill="none">
+        <svg viewBox="0 0 120 12" className="mt-2 w-24 text-[#f0222c] rtl:-scale-x-100" fill="none">
           <path d="M2 8 C 30 2, 60 11, 118 3" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
 
-        <p className="font-script mt-auto pt-4 text-right text-2xl leading-tight text-white/90">
+        <p className="font-script mt-auto pt-4 text-end text-2xl leading-tight text-white/90">
           Good Food
           <br />
           Happy People
@@ -440,7 +464,7 @@ export function GoodFoodCard({ className = '' }) {
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: "url('/images/menu/pizza/pizza7.jpg')" }}
       />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/65 to-[#3a0a0d]/40" />
+      <div className="absolute inset-0 rtl:bg-gradient-to-l bg-gradient-to-r from-black/90 via-black/65 to-[#3a0a0d]/40" />
 
       <div className="relative flex h-full flex-col justify-center px-7 py-6">
         <p className="font-script text-3xl leading-tight text-white">
@@ -448,7 +472,7 @@ export function GoodFoodCard({ className = '' }) {
           <br />
           Happy People
         </p>
-        <svg viewBox="0 0 120 12" className="mt-1 w-24 text-[#f0222c]" fill="none">
+        <svg viewBox="0 0 120 12" className="mt-1 w-24 text-[#f0222c] rtl:-scale-x-100" fill="none">
           <path d="M2 8 C 30 2, 60 11, 118 3" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
       </div>
