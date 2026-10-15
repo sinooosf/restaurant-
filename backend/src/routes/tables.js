@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { serializeTable } from '../serialize.js'
 import { TABLE_ORDER_SQL } from '../time.js'
+import { normalizeTableId } from '../validate.js'
 
 const router = Router()
 
@@ -27,6 +28,9 @@ router.get('/', async (req, res, next) => {
 // directly is what makes a brand-new table work on the very first scan.
 router.get('/:id', async (req, res, next) => {
   try {
+    if (normalizeTableId(req.params.id) === null) {
+      return res.status(404).json({ error: 'Table not found.' })
+    }
     const result = await pool.query(
       'SELECT * FROM restaurant_tables WHERE id = $1',
       [req.params.id],

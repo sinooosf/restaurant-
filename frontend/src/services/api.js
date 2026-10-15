@@ -19,7 +19,27 @@ async function request(path, { method = 'GET', body, password } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  const data = await response.json().catch(() => ({}))
+  let data
+  let parsed = true
+  try {
+    data = await response.json()
+  } catch {
+    data = {}
+    parsed = false
+  }
+
+  // A 200 whose body is not JSON (a proxy's error page, a sleeping host's
+  // placeholder...) is NOT a real answer. Report it like a network problem,
+  // so callers keep their fallbacks and retry instead of using empty data.
+  if (response.ok && !parsed) {
+    throw new Error(`The server sent an unexpected answer for ${path}.`)
+  }
+
+  // The server no longer accepts the saved staff password (it was changed):
+  // tell the dashboard so it can send the person back to the login screen.
+  if (response.status === 401 && password && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('mtc-admin-unauthorized'))
+  }
 
   if (!response.ok) {
     const error = new Error(data.error || `Request to ${path} failed (${response.status})`)

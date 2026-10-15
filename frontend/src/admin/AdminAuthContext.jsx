@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { adminLogin } from '../services/api'
 
 const AdminAuthContext = createContext(null)
@@ -22,6 +22,13 @@ export function AdminAuthProvider({ children }) {
     localStorage.removeItem(STORAGE_KEY)
     setPassword('')
   }, [])
+
+  // Password changed on the server -> every request answers 401 -> log out
+  // (instead of leaving a dashboard full of error messages).
+  useEffect(() => {
+    window.addEventListener('mtc-admin-unauthorized', logout)
+    return () => window.removeEventListener('mtc-admin-unauthorized', logout)
+  }, [logout])
 
   return (
     <AdminAuthContext.Provider value={{ password, isAuthed: Boolean(password), login, logout }}>

@@ -109,8 +109,17 @@ export let MENU_ITEMS = [
 export async function loadMenuData() {
   try {
     const data = await fetchMenu()
-    if (Array.isArray(data.categories) && data.categories.length) CATEGORIES = data.categories
-    if (Array.isArray(data.items)) MENU_ITEMS = data.items
+    // Only accept well-formed entries: one broken row must not blank the menu.
+    const goodCategory = (c) => c && typeof c.id === 'string' && typeof c.name === 'string'
+    const goodItem = (i) =>
+      i && typeof i.id === 'string' && typeof i.categoryId === 'string' &&
+      typeof i.name === 'string' && Number.isFinite(i.price)
+
+    const categories = Array.isArray(data?.categories) ? data.categories.filter(goodCategory) : []
+    const items = Array.isArray(data?.items) ? data.items.filter(goodItem) : []
+
+    if (categories.length) CATEGORIES = categories
+    if (Array.isArray(data?.items)) MENU_ITEMS = items
   } catch (err) {
     console.warn('Could not load the menu from the backend — using the built-in demo menu instead.', err)
   }

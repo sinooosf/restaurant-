@@ -147,3 +147,29 @@ restaurant-system/
 - Set `RESTAURANT_TZ` in `backend/.env` (default `Africa/Algiers`) so "today" matches your
   restaurant's clock.
 - Run `npm install` in `frontend/` once (two new font packages were added).
+
+---
+
+## Testing (backend, frontend, browser stress tests)
+
+**Backend** (37 tests: bad input, hostile text, 300 simultaneous orders, races, 1500-request load,
+database connections being killed). It wipes the database it is pointed at, so it only uses
+`TEST_DATABASE_URL` (never your `.env`) and refuses any database whose name does not contain "test":
+
+```
+createdb meet_the_chefs_test
+cd backend
+TEST_DATABASE_URL=postgres://user:pass@localhost:5432/meet_the_chefs_test npm test
+```
+
+**Frontend unit tests** (65 tests): `cd frontend && npm test`
+
+**Browser stress tests** (phones of every size, 3 languages, rapid taps, broken network,
+corrupted storage, 12 phones at once, dashboard on 6 screen sizes, drag stress, big data).
+Start the backend (on a throw-away/test database!) and the frontend, then:
+
+```
+cd frontend
+npx playwright install chromium     # once
+E2E_URL=http://localhost:5173 E2E_API=http://localhost:4000/api E2E_PASSWORD=your-staff-password npm run e2e
+```

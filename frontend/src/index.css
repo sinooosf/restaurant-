@@ -22,7 +22,16 @@
 
 /* Phones with a short screen (iPhone SE and similar, 740px tall or less).
    Used as "short:" in class names. Taller phones (iPhone 16...) are untouched. */
-@custom-variant short (@media (max-height: 740px));
+@custom-variant short {
+  @media (max-height: 740px) {
+    @slot;
+  }
+  @media (min-width: 640px) and (max-height: 900px) {
+    @slot;
+  }
+}
+/* Very small phones (iPhone 5 / old Android, 600px tall or less) */
+@custom-variant tiny (@media (max-height: 600px));
 
 @theme {
   --font-display: "Anton", sans-serif;

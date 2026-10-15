@@ -17,7 +17,7 @@ export default function Header({
   const { t } = useLanguage()
 
   return (
-    <header className="sticky top-0 z-[60] bg-ink/95 px-4 pb-3 pt-4 backdrop-blur">
+    <header className="sticky top-0 z-[60] bg-ink/95 px-4 pb-3 pt-4 tiny:pb-1.5 tiny:pt-2 backdrop-blur">
       <div className="relative flex items-center gap-2.5 rounded-full bg-mist-800/50 px-4 py-2.5 ps-20 backdrop-blur">
 
         {/* Logo */}

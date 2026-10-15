@@ -3,6 +3,7 @@ import { pool } from '../db.js'
 import { requireAdmin } from '../middleware/auth.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
+import { checkDish, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
 import {
   serializeCategory,
   serializeMenuItem,
@@ -19,13 +20,16 @@ const router = Router()
 // at login time, instead of only failing later on the first real request.
 router.post('/login', (req, res) => {
   const { password } = req.body || {}
-  if (password !== process.env.ADMIN_PASSWORD) {
+  if (typeof password !== 'string' || password !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'Incorrect password.' })
   }
   res.json({ ok: true })
 })
 
 router.use(requireAdmin)
+
+// Every :id in a URL is checked for NUL bytes / absurd length first.
+router.param('id', safeTextId)
 
 // ---------------------------------------------------------------------
 // Categories (read-only list, used to populate the "category" dropdown
@@ -43,6 +47,9 @@ router.get('/categories', async (req, res, next) => {
 router.post('/categories', async (req, res, next) => {
   try {
     const { id, name, image, description } = req.body || {}
+    if (!isText(name, 80) || (id !== undefined && !isText(id, 80)) || (image !== undefined && !isText(image, 500)) || (description !== undefined && typeof description !== 'string')) {
+      return res.status(400).json({ error: 'A category needs a name (up to 80 characters).' })
+    }
     const slug = String(id || name || '')
       .trim()
       .toLowerCase()
@@ -95,9 +102,11 @@ router.get('/menu-items', async (req, res, next) => {
 router.post('/menu-items', async (req, res, next) => {
   try {
     const { id, categoryId, name, price, image, available, discountPercent, isBest } = req.body || {}
-    if (!id || !categoryId || !name || price == null || !image) {
+    if (!isText(id, 80)) {
       return res.status(400).json({ error: 'id, categoryId, name, price and image are all required.' })
     }
+    const problem = checkDish(req.body)
+    if (problem) return res.status(400).json({ error: problem })
     const result = await pool.query(
       `INSERT INTO menu_items (id, category_id, name, price, image, available, discount_percent, is_best)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
@@ -105,7 +114,8 @@ router.post('/menu-items', async (req, res, next) => {
     )
     res.status(201).json(serializeMenuItem(result.rows[0]))
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: `An item with id "${req.body.id}" already exists.` })
+    if (err.code === '23505') return res.status(409).json({ error: `An item with id "${String(req.body?.id).slice(0, 60)}" already exists.` })
+    if (err.code === '23503') return res.status(400).json({ error: 'That category does not exist.' })
     next(err)
   }
 })
@@ -113,6 +123,8 @@ router.post('/menu-items', async (req, res, next) => {
 router.put('/menu-items/:id', async (req, res, next) => {
   try {
     const { categoryId, name, price, image, available, discountPercent, isBest } = req.body || {}
+    const problem = checkDish(req.body, { partial: true })
+    if (problem) return res.status(400).json({ error: problem })
     const result = await pool.query(
       `UPDATE menu_items SET
          category_id = COALESCE($1, category_id),
@@ -129,6 +141,7 @@ router.put('/menu-items/:id', async (req, res, next) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Menu item not found.' })
     res.json(serializeMenuItem(result.rows[0]))
   } catch (err) {
+    if (err.code === '23503') return res.status(400).json({ error: 'That category does not exist.' })
     next(err)
   }
 })
@@ -209,7 +222,11 @@ router.get('/tables', async (req, res, next) => {
 router.post('/tables', async (req, res, next) => {
   try {
     const { id, label, seats } = req.body || {}
+    if ((typeof id !== 'string' && typeof id !== 'number') || (label !== undefined && label !== null && !isText(label, 60))) {
+      return res.status(400).json({ error: 'id is required, e.g. "6".' })
+    }
     const cleanId = String(id ?? '').trim()
+    if (cleanId.length > 40) return res.status(400).json({ error: 'The table ID can be at most 40 characters.' })
 
     if (!cleanId) return res.status(400).json({ error: 'id is required, e.g. "6".' })
     if (!/^[A-Za-z0-9_-]+$/.test(cleanId)) {
@@ -219,7 +236,7 @@ router.post('/tables', async (req, res, next) => {
       return res.status(400).json({ error: '"home" is reserved for the ToHomeOrder link.' })
     }
 
-    const seatCount = Math.min(Math.max(parseInt(seats, 10) || 4, 1), 20)
+    const seatCount = Math.min(Math.max(Math.trunc(Number(seats)) || 4, 1), 20)
 
     const result = await pool.query(
       'INSERT INTO restaurant_tables (id, label, seats) VALUES ($1, $2, $3) RETURNING *',
@@ -233,18 +250,24 @@ router.post('/tables', async (req, res, next) => {
 })
 
 // Floor-plan position in % (0-100), or null when not sent.
-const pct = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(Math.max(Number(v), 0), 100) : null)
+const pct = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(Math.max(v, 0), 100) : null)
 
 // Change seats / label, or set the manual status (auto | cleaning | out_of_service).
 router.patch('/tables/:id', async (req, res, next) => {
   try {
     const { seats, label, status, posX, posY } = req.body || {}
+    if (label !== undefined && label !== null && !isText(label, 60)) {
+      return res.status(400).json({ error: 'The label must be 1–60 characters.' })
+    }
+    if (seats !== undefined && seats !== null && !Number.isFinite(Number(seats))) {
+      return res.status(400).json({ error: 'seats must be a number.' })
+    }
 
     if (status !== undefined && !['auto', 'cleaning', 'out_of_service'].includes(status)) {
       return res.status(400).json({ error: 'status must be auto, cleaning or out_of_service.' })
     }
 
-    const seatCount = seats === undefined ? null : Math.min(Math.max(parseInt(seats, 10) || 1, 1), 20)
+    const seatCount = seats === undefined || seats === null ? null : Math.min(Math.max(Math.trunc(Number(seats)) || 1, 1), 20)
 
     const result = await pool.query(
       `UPDATE restaurant_tables SET
@@ -255,7 +278,7 @@ router.patch('/tables/:id', async (req, res, next) => {
          pos_y  = COALESCE($6, pos_y)
        WHERE id = $4 AND kind = 'table'
        RETURNING *`,
-      [seatCount, label?.trim() || null, status ?? null, req.params.id, pct(posX), pct(posY)],
+      [seatCount, (typeof label === 'string' ? label.trim() : '') || null, status ?? null, req.params.id, pct(posX), pct(posY)],
     )
     if (result.rows.length === 0) return res.status(404).json({ error: 'Table not found.' })
     res.json(serializeTable(result.rows[0]))
@@ -301,7 +324,7 @@ router.get('/chatbot-faqs', async (req, res, next) => {
 router.post('/chatbot-faqs', async (req, res, next) => {
   try {
     const { keyword, answer } = req.body || {}
-    if (!keyword || !answer) return res.status(400).json({ error: 'keyword and answer are both required.' })
+    if (!isText(keyword, 200) || !isText(answer, 2000)) return res.status(400).json({ error: 'keyword and answer are both required.' })
     const result = await pool.query(
       'INSERT INTO chatbot_faqs (keyword, answer) VALUES ($1, $2) RETURNING *',
       [keyword, answer],
@@ -312,9 +335,12 @@ router.post('/chatbot-faqs', async (req, res, next) => {
   }
 })
 
-router.put('/chatbot-faqs/:id', async (req, res, next) => {
+router.put('/chatbot-faqs/:id', numericId, async (req, res, next) => {
   try {
     const { keyword, answer } = req.body || {}
+    if ((keyword != null && !isText(keyword, 200)) || (answer != null && !isText(answer, 2000))) {
+      return res.status(400).json({ error: 'keyword and answer must be text.' })
+    }
     const result = await pool.query(
       `UPDATE chatbot_faqs SET keyword = COALESCE($1, keyword), answer = COALESCE($2, answer)
        WHERE id = $3 RETURNING *`,
@@ -327,7 +353,7 @@ router.put('/chatbot-faqs/:id', async (req, res, next) => {
   }
 })
 
-router.delete('/chatbot-faqs/:id', async (req, res, next) => {
+router.delete('/chatbot-faqs/:id', numericId, async (req, res, next) => {
   try {
     const result = await pool.query('DELETE FROM chatbot_faqs WHERE id = $1 RETURNING id', [req.params.id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'FAQ not found.' })
@@ -414,7 +440,7 @@ router.get('/summary', async (req, res, next) => {
   }
 })
 
-router.get('/orders/:id', async (req, res, next) => {
+router.get('/orders/:id', numericId, async (req, res, next) => {
   try {
     if (!/^\d+$/.test(req.params.id)) return res.status(404).json({ error: 'Order not found.' })
     const result = await pool.query('SELECT * FROM orders WHERE id = $1', [req.params.id])
@@ -425,10 +451,10 @@ router.get('/orders/:id', async (req, res, next) => {
   }
 })
 
-router.patch('/orders/:id/status', async (req, res, next) => {
+router.patch('/orders/:id/status', numericId, async (req, res, next) => {
   try {
-    const { status } = req.body || {}
-    if (!VALID_STATUSES.includes(status)) {
+    const status = req.body?.status
+    if (typeof status !== 'string' || !VALID_STATUSES.includes(status)) {
       return res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` })
     }
     const result = await pool.query(
@@ -443,42 +469,62 @@ router.patch('/orders/:id/status', async (req, res, next) => {
 })
 
 // Move an order to another (free) table.
-router.patch('/orders/:id/move', async (req, res, next) => {
+// The target table's row is locked while we check and move, so two staff
+// members cannot both send an order to the same free table at the same time.
+router.patch('/orders/:id/move', numericId, async (req, res, next) => {
+  const tableId = normalizeTableId(req.body?.tableId)
+  if (tableId === null) return res.status(404).json({ error: 'That table does not exist.' })
+
+  const client = await pool.connect()
   try {
-    const { tableId } = req.body || {}
+    await client.query('BEGIN')
 
-    const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [req.params.id])
-    const order = orderResult.rows[0]
-    if (!order) return res.status(404).json({ error: 'Order not found.' })
-    if (!OPEN_STATUSES.includes(order.status)) {
-      return res.status(409).json({ error: 'Only an order in progress can be moved.' })
-    }
-
-    const target = await pool.query(
-      `SELECT * FROM restaurant_tables WHERE id = $1 AND kind = 'table'`,
+    const target = await client.query(
+      `SELECT * FROM restaurant_tables WHERE id = $1 AND kind = 'table' FOR UPDATE`,
       [tableId],
     )
-    if (target.rows.length === 0) return res.status(404).json({ error: 'That table does not exist.' })
+    if (target.rows.length === 0) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(404).json({ error: 'That table does not exist.' })
+    }
     if (target.rows[0].status === 'out_of_service') {
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(409).json({ error: 'That table is out of service.' })
     }
 
-    const busy = await pool.query(
+    const orderResult = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [req.params.id])
+    const order = orderResult.rows[0]
+    if (!order) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(404).json({ error: 'Order not found.' })
+    }
+    if (!OPEN_STATUSES.includes(order.status)) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(409).json({ error: 'Only an order in progress can be moved.' })
+    }
+
+    const busy = await client.query(
       `SELECT 1 FROM orders WHERE table_id = $1 AND status = ANY($2)
           AND created_at > now() - interval '6 hours' AND id <> $3 LIMIT 1`,
       [tableId, OPEN_STATUSES, order.id],
     )
     if (busy.rows.length > 0) {
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(409).json({ error: 'That table already has an order. Use "Merge Tables" instead.' })
     }
 
-    const updated = await pool.query(
+    const updated = await client.query(
       'UPDATE orders SET table_id = $1, updated_at = now() WHERE id = $2 RETURNING *',
       [tableId, order.id],
     )
-    res.json((await attachItems(updated.rows))[0])
+    const items = await client.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY id', [order.id])
+    await client.query('COMMIT')
+    res.json(serializeOrder(updated.rows[0], items.rows))
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
     next(err)
+  } finally {
+    client.release()
   }
 })
 
@@ -504,11 +550,11 @@ router.post('/orders/merge', async (req, res, next) => {
     const into = locked.rows.find((o) => o.id === intoId)
 
     if (!from || !into) {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(404).json({ error: 'Order not found.' })
     }
     if (!OPEN_STATUSES.includes(from.status) || !OPEN_STATUSES.includes(into.status)) {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(409).json({ error: 'Only orders in progress can be merged.' })
     }
 
@@ -537,12 +583,12 @@ router.post('/orders/merge', async (req, res, next) => {
       [intoId],
     )
 
+    const merged = await client.query('SELECT * FROM orders WHERE id = $1', [intoId])
+    const mergedItems = await client.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY id', [intoId])
     await client.query('COMMIT')
-
-    const merged = await pool.query('SELECT * FROM orders WHERE id = $1', [intoId])
-    res.json((await attachItems(merged.rows))[0])
+    res.json(serializeOrder(merged.rows[0], mergedItems.rows))
   } catch (err) {
-    await client.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => {})
     next(err)
   } finally {
     client.release()

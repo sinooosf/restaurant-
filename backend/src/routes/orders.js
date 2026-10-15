@@ -2,13 +2,18 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
 import { HOME_TABLE_ID } from '../migrate.js'
+import { normalizeTableId, numericId, parseOrderLines } from '../validate.js'
 
 const router = Router()
 
-async function loadOrder(id) {
-  const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [id])
+// `db` is the pool, or a client that is already checked out. A route that
+// holds a client must pass it here: asking the pool for a SECOND connection
+// while holding one makes busy moments deadlock (every request waits for a
+// connection that only another waiting request could give back).
+async function loadOrder(id, db = pool) {
+  const orderResult = await db.query('SELECT * FROM orders WHERE id = $1', [id])
   if (orderResult.rows.length === 0) return null
-  const itemsResult = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [id])
+  const itemsResult = await db.query('SELECT * FROM order_items WHERE order_id = $1', [id])
   return serializeOrder(orderResult.rows[0], itemsResult.rows)
 }
 
@@ -19,14 +24,13 @@ async function loadOrder(id) {
 // from what the customer's browser sends — so there's no way to place an
 // order for a price that isn't the real, current one.
 router.post('/', async (req, res, next) => {
-  const { tableId, items } = req.body || {}
-
+  const tableId = normalizeTableId(req.body?.tableId)
   if (!tableId) {
     return res.status(400).json({ error: 'tableId is required.' })
   }
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Cannot place an empty order.' })
-  }
+
+  const parsed = parseOrderLines(req.body?.items)
+  if (parsed.error) return res.status(400).json({ error: parsed.error })
 
   const client = await pool.connect()
   try {
@@ -34,26 +38,20 @@ router.post('/', async (req, res, next) => {
 
     const tableCheck = await client.query('SELECT id FROM restaurant_tables WHERE id = $1', [tableId])
     if (tableCheck.rows.length === 0) {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(400).json({ error: `Unknown table: ${tableId}` })
     }
 
     const resolvedLines = []
-    for (const line of items) {
-      const quantity = Number(line?.quantity)
-      if (!line?.id || !Number.isInteger(quantity) || quantity <= 0) {
-        await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'Each item needs a valid id and a positive quantity.' })
-      }
-
-      const itemResult = await client.query('SELECT * FROM menu_items WHERE id = $1', [line.id])
+    for (const { id, quantity } of parsed.lines) {
+      const itemResult = await client.query('SELECT * FROM menu_items WHERE id = $1', [id])
       const item = itemResult.rows[0]
       if (!item) {
-        await client.query('ROLLBACK')
-        return res.status(400).json({ error: `Unknown menu item: ${line.id}` })
+        await client.query('ROLLBACK').catch(() => {})
+        return res.status(400).json({ error: `Unknown menu item: ${String(id).slice(0, 60)}` })
       }
       if (!item.available) {
-        await client.query('ROLLBACK')
+        await client.query('ROLLBACK').catch(() => {})
         return res.status(400).json({ error: `"${item.name}" is not available right now.` })
       }
 
@@ -84,7 +82,7 @@ router.post('/', async (req, res, next) => {
       item_id: l.id, name: l.name, quantity: l.quantity, unit_price: l.unitPrice,
     }))))
   } catch (err) {
-    await client.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => {})
     next(err)
   } finally {
     client.release()
@@ -98,7 +96,7 @@ router.get('/table/:tableId/active', async (req, res, next) => {
     // "To Home" orders belong to one customer each — two people ordering
     // through that link at the same time must never see each other's order.
     // Their own phone remembers its order id instead.
-    if (req.params.tableId === HOME_TABLE_ID) return res.json(null)
+    if (req.params.tableId === HOME_TABLE_ID || normalizeTableId(req.params.tableId) === null) return res.json(null)
 
     const result = await pool.query(
       `SELECT id FROM orders
@@ -121,12 +119,9 @@ router.get('/table/:tableId/active', async (req, res, next) => {
 // "Add more": puts extra dishes into an order that is still "preparing".
 // It edits the SAME order (no second order is created), so the kitchen sees
 // one ticket per visit. Once the kitchen moves the order on, it is locked.
-router.post('/:id/items', async (req, res, next) => {
-  const { items } = req.body || {}
-
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Nothing to add.' })
-  }
+router.post('/:id/items', numericId, async (req, res, next) => {
+  const parsed = parseOrderLines(req.body?.items)
+  if (parsed.error) return res.status(400).json({ error: parsed.error === 'Cannot place an empty order.' ? 'Nothing to add.' : parsed.error })
 
   const client = await pool.connect()
   try {
@@ -140,32 +135,26 @@ router.post('/:id/items', async (req, res, next) => {
     const order = orderResult.rows[0]
 
     if (!order) {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(404).json({ error: 'Order not found.' })
     }
     if (order.status !== 'preparing') {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       return res.status(409).json({
         error:
           'The kitchen is already finishing this order, so it can no longer be changed.',
       })
     }
 
-    for (const line of items) {
-      const quantity = Number(line?.quantity)
-      if (!line?.id || !Number.isInteger(quantity) || quantity <= 0) {
-        await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'Each item needs a valid id and a positive quantity.' })
-      }
-
-      const itemResult = await client.query('SELECT * FROM menu_items WHERE id = $1', [line.id])
+    for (const { id, quantity } of parsed.lines) {
+      const itemResult = await client.query('SELECT * FROM menu_items WHERE id = $1', [id])
       const item = itemResult.rows[0]
       if (!item) {
-        await client.query('ROLLBACK')
-        return res.status(400).json({ error: `Unknown menu item: ${line.id}` })
+        await client.query('ROLLBACK').catch(() => {})
+        return res.status(400).json({ error: `Unknown menu item: ${String(id).slice(0, 60)}` })
       }
       if (!item.available) {
-        await client.query('ROLLBACK')
+        await client.query('ROLLBACK').catch(() => {})
         return res.status(400).json({ error: `"${item.name}" is not available right now.` })
       }
 
@@ -201,10 +190,11 @@ router.post('/:id/items', async (req, res, next) => {
       [order.id],
     )
 
+    const updatedOrder = await loadOrder(order.id, client)
     await client.query('COMMIT')
-    res.json(await loadOrder(order.id))
+    res.json(updatedOrder)
   } catch (err) {
-    await client.query('ROLLBACK')
+    await client.query('ROLLBACK').catch(() => {})
     next(err)
   } finally {
     client.release()
@@ -213,7 +203,7 @@ router.post('/:id/items', async (req, res, next) => {
 
 // GET /api/orders/:id — used by the customer's browser to poll for status
 // changes after placing an order (see context/OrderContext.jsx).
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', numericId, async (req, res, next) => {
   try {
     const order = await loadOrder(req.params.id)
     if (!order) return res.status(404).json({ error: 'Order not found.' })
@@ -224,7 +214,7 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // PATCH /api/orders/:id/cancel — the customer's own "Cancel order" button.
-router.patch('/:id/cancel', async (req, res, next) => {
+router.patch('/:id/cancel', numericId, async (req, res, next) => {
   try {
     const existing = await loadOrder(req.params.id)
     if (!existing) return res.status(404).json({ error: 'Order not found.' })

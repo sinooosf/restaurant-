@@ -54,7 +54,9 @@ function saveOrderId(tableId, id) {
 
 function readOrderId(tableId) {
   try {
-    return localStorage.getItem(orderKey(tableId))
+    const saved = localStorage.getItem(orderKey(tableId))
+    // Order ids are plain numbers; anything else in storage is junk.
+    return saved && /^[1-9]\d{0,8}$/.test(saved) ? saved : null
   } catch {
     return null
   }

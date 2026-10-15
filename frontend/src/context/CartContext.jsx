@@ -14,6 +14,9 @@ import { tableIdFromPath } from '../data/tables'
 
 const CartContext = createContext(null)
 
+// The restaurant's server accepts at most this many of one dish per order.
+export const MAX_PER_ITEM = 99
+
 // A saved cart is forgotten after this long, so the next guest at a table
 // doesn't inherit someone else's old selections.
 const CART_TTL_MS = 6 * 60 * 60 * 1000
@@ -29,7 +32,7 @@ function readSavedCart(key) {
 
     const clean = {}
     for (const [itemId, qty] of Object.entries(saved.quantities || {})) {
-      if (Number.isInteger(qty) && qty > 0) clean[itemId] = qty
+      if (Number.isInteger(qty) && qty > 0) clean[itemId] = Math.min(qty, MAX_PER_ITEM)
     }
     return clean
   } catch {
@@ -76,7 +79,7 @@ export function CartProvider({ children }) {
   const addItem = useCallback((itemId) => {
     setQuantities((prev) => ({
       ...prev,
-      [itemId]: (prev[itemId] || 0) + 1,
+      [itemId]: Math.min((prev[itemId] || 0) + 1, MAX_PER_ITEM),
     }))
   }, [])
 

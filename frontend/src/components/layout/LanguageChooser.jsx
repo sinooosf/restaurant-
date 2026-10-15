@@ -4,7 +4,7 @@ import { Check } from 'lucide-react'
 import { LANGUAGES, directionOf, translate } from '../../i18n/translate'
 
 // "Choose your language" — shown right after the intro, before the menu.
-// Three hexagon flags (English, French, Arabic). Tapping one previews the
+// Three hexagon flags (English, French, and Arabic shown with the Saudi Arabia flag). Tapping one previews the
 // screen's own text in that language; "Continue" applies it for the whole
 // ordering session (Arabic also flips the layout right-to-left).
 // The grid itself stays left-to-right on purpose so the hexagons do not jump
@@ -38,28 +38,38 @@ function FrenchFlag() {
   )
 }
 
-// A plain green badge with the Arabic letter "ع" (not a country flag, since
-// Arabic is spoken in many countries).
-function ArabicBadge() {
+// The flag of Saudi Arabia: green field, the white Arabic inscription (the
+// Shahada) and a white sword underneath, blade pointing left.
+function SaudiFlag() {
   return (
-    <svg viewBox="0 0 100 100" className="h-full w-full">
-      <rect width="100" height="100" fill="#0b7a43" />
+    <svg viewBox="0 0 100 116" preserveAspectRatio="xMidYMid slice" className="h-full w-full" role="img" aria-label="Saudi Arabia">
+      <rect width="100" height="116" fill="#006C35" />
       <text
         x="50"
-        y="72"
+        y="56"
         textAnchor="middle"
-        fontSize="64"
+        fontSize="15"
         fontWeight="700"
         fill="#fff"
+        textLength="74"
+        lengthAdjust="spacingAndGlyphs"
+        direction="rtl"
         fontFamily="Cairo, 'Noto Sans Arabic', sans-serif"
       >
-        ع
+        لا إله إلا الله محمد رسول الله
       </text>
+      {/* sword: blade pointing left, hilt on the right */}
+      <g fill="#fff">
+        <path d="M22 70 H74 Q78 70 78 72 Q78 74 74 74 H22 Z" />
+        <rect x="74" y="67" width="3" height="10" rx="1.4" />
+        <rect x="77" y="69" width="11" height="6" rx="3" />
+        <path d="M17 72 L23 69.4 V74.6 Z" />
+      </g>
     </svg>
   )
 }
 
-const FLAGS = { en: UnionJack, fr: FrenchFlag, ar: ArabicBadge }
+const FLAGS = { en: UnionJack, fr: FrenchFlag, ar: SaudiFlag }
 
 export default function LanguageChooser({ onContinue }) {
   const [selected, setSelected] = useState('en')

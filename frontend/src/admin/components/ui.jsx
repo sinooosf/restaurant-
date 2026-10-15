@@ -85,6 +85,15 @@ export function IconTile({ tone = 'red', children, className = '' }) {
   )
 }
 
+// Long amounts (59,400,000 DH) shrink instead of being cut off.
+function bigNumberSize(value) {
+  const length = typeof value === 'string' || typeof value === 'number' ? String(value).length : 0
+  if (length > 16) return 'text-[16px]'
+  if (length > 12) return 'text-[20px]'
+  if (length > 9) return 'text-[24px]'
+  return 'text-[30px]'
+}
+
 // The big number cards across the top of every page.
 //   delta: a number (percent, shown green/red with an arrow) or null
 export function StatCard({ icon, tone, label, value, delta, sub, children }) {
@@ -96,7 +105,7 @@ export function StatCard({ icon, tone, label, value, delta, sub, children }) {
 
         <div className="min-w-0">
           <p className="text-[13px] text-white/70">{label}</p>
-          <p className="mt-0.5 truncate text-[30px] font-bold leading-tight text-white">{value}</p>
+          <p className={`mt-0.5 break-words font-bold leading-tight text-white ${bigNumberSize(value)}`}>{value}</p>
 
           {delta !== undefined && delta !== null && (
             <p

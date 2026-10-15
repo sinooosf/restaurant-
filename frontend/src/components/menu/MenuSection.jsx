@@ -36,7 +36,7 @@ export default function MenuSection({ items, resetKey, bottomInset = 150 }) {
       <style>{STYLES}</style>
  
       {/* MENU stays completely fixed */}
-      <div className="shrink-0 bg-ink py-3 short:py-1.5">
+      <div className="shrink-0 bg-ink py-3 short:py-1.5 tiny:hidden">
         <div className="flex items-center gap-3">
           {/* Left line + diamond */}
           <div className="flex flex-1 items-center">
