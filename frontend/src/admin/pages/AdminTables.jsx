@@ -162,9 +162,9 @@ export default function AdminTables() {
             <StatCard icon={<CircleX size={26} />} tone="gray" label={t('admin.tables.state.out_of_service')} value={count('out_of_service')} sub={`${pct(count('out_of_service'))}%`} />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
             {/* The floor takes the whole left side */}
-            <Card className="p-5">
+            <Card className="min-w-0 p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle icon={<LayoutGrid size={22} />} title={t('admin.tables.floor')} />
                 <div className="flex flex-wrap items-center gap-2">
@@ -226,15 +226,15 @@ export default function AdminTables() {
                         <button
                           type="button"
                           onClick={() => setHighlightId(tb.id)}
-                          className={`flex w-full items-center gap-3 rounded-lg px-1 py-3 text-start transition hover:bg-white/[0.04] ${tb.id === highlightId ? 'bg-white/[0.05]' : ''}`}
+                          className={`flex w-full items-center gap-2 rounded-lg px-1 py-3 text-start sm:gap-3 transition hover:bg-white/[0.04] ${tb.id === highlightId ? 'bg-white/[0.05]' : ''}`}
                         >
                           <span className={`h-3 w-3 rounded-full ${s.dot}`} />
                           <span className="w-[62px] text-sm text-white">{tableLabel(tb.id)}</span>
                           <span className="flex w-9 items-center gap-1 text-xs text-white/55">
                             <UsersRound size={13} /> {tb.seats}
                           </span>
-                          <span className={`min-w-[92px] rounded-full px-3 py-1 text-center text-xs font-medium ${s.badge}`}>{t(s.labelKey)}</span>
-                          <span className="flex-1 text-end text-xs text-white/45">
+                          <span className={`min-w-[84px] rounded-full px-2 py-1 text-center sm:min-w-[92px] sm:px-3 text-xs font-medium ${s.badge}`}>{t(s.labelKey)}</span>
+                          <span className="min-w-0 flex-1 truncate text-end text-xs text-white/45">
                             {tb.order ? clockTime(tb.order.createdAt, lang) : ''}
                           </span>
                           <ChevronRight size={15} className="text-white/45 rtl:-scale-x-100" />
@@ -288,10 +288,13 @@ function Floor({ tables, positionOf, highlightId, onMove, onDrop, onMenu, menu, 
   const ref = useRef(null)
 
   return (
+    // On a phone the floor keeps its full size and scrolls sideways, so tables
+    // never overlap. Dragging still works (the tables block the page scroll).
+    <div className="mt-4 overflow-x-auto rounded-xl">
     <div
       ref={ref}
       dir="ltr" // the floor plan is a physical map: saved positions never mirror
-      className="relative mt-4 h-[640px] select-none overflow-hidden rounded-xl border border-white/[0.1]"
+      className="relative h-[640px] min-w-[760px] select-none overflow-hidden rounded-xl border border-white/[0.1]"
       style={{
         // Dark tiled floor
         backgroundColor: '#121214',
@@ -322,6 +325,7 @@ function Floor({ tables, positionOf, highlightId, onMove, onDrop, onMenu, menu, 
       </div>
 
       {menu && menuContent && <MenuPopup menu={menu} floorRef={ref}>{menuContent}</MenuPopup>}
+    </div>
     </div>
   )
 }
@@ -434,11 +438,16 @@ function DraggableTable({ table, pos, highlighted, floorRef, onMove, onDrop, onM
     onMove(d.last)
   }
 
-  function pointerUp() {
+  function pointerUp(event) {
     const d = drag.current
     drag.current = null
     setDragging(false)
     if (d?.moved) onDrop(d.last)
+    // A finger has no right-click or double-click: a simple tap opens the options.
+    else if (d && event.type === 'pointerup' && event.pointerType === 'touch') {
+      const r = floorRef.current.getBoundingClientRect()
+      onMenu(event.clientX - r.left, event.clientY - r.top)
+    }
   }
 
   const s = STATE[table.state]
@@ -690,15 +699,15 @@ function LinksModal({ tables, onClose }) {
     <Modal wide title={t('admin.tables.linksTitle')} subtitle={t('admin.tables.linksSubtitle')} onClose={onClose}>
       <ul className="divide-y divide-white/[0.06]">
         {rows.map((row) => (
-          <li key={row.key} className="flex items-center gap-3 py-3">
+          <li key={row.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:flex-nowrap">
             <span className={`w-[110px] shrink-0 rounded-lg px-3 py-1 text-center text-xs font-semibold text-white ${row.special ? 'bg-[#8a4b0f]' : 'bg-[#5a0b10]'}`}>
               {row.label}
             </span>
-            <code className="min-w-0 flex-1 truncate text-xs text-white/55">
+            <code className="order-last min-w-0 basis-full truncate text-xs text-white/55 sm:order-none sm:flex-1 sm:basis-auto">
               {window.location.origin}{row.path}
             </code>
             {row.special && <span className="hidden text-[11px] text-amber-400/80 sm:block">{t('admin.tables.noTableOrders')}</span>}
-            <button type="button" onClick={() => copy(row)} className="flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-1.5 text-xs text-white transition hover:bg-white/[0.14]">
+            <button type="button" onClick={() => copy(row)} className="ms-auto flex items-center gap-1.5 sm:ms-0 rounded-lg bg-white/[0.07] px-3 py-1.5 text-xs text-white transition hover:bg-white/[0.14]">
               <Copy size={13} /> {copied === row.key ? t('admin.tables.copied') : t('admin.tables.copy')}
             </button>
             <a href={row.path} target="_blank" rel="noreferrer" aria-label={t('admin.tables.open', { label: row.label })} className="text-white/50 hover:text-white">

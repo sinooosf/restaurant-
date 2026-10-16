@@ -98,7 +98,7 @@ function bigNumberSize(value) {
 //   delta: a number (percent, shown green/red with an arrow) or null
 export function StatCard({ icon, tone, label, value, delta, sub, children }) {
   return (
-    <Card className="relative overflow-hidden px-5 py-5">
+    <Card className="relative overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
       <div className="pointer-events-none absolute -start-8 -top-8 h-28 w-28 rounded-full bg-[#d9151f]/[0.07] blur-2xl" />
       <div className="relative flex items-center gap-4">
         <IconTile tone={tone}>{icon}</IconTile>
@@ -248,7 +248,7 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
   const languageOptions = languages.map((language) => ({ value: language.code, label: language.name }))
 
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="flex min-w-0 items-center gap-3.5">
         <button
           type="button"
@@ -262,12 +262,12 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
         {icon && <span className="hidden text-white sm:block">{icon}</span>}
 
         <div className="min-w-0">
-          <h1 className="text-[32px] font-bold leading-none tracking-tight text-white">{title}</h1>
-          <p className="mt-2 truncate text-sm text-white/65">{subtitle}</p>
+          <h1 className="text-2xl font-bold leading-none tracking-tight text-white sm:text-[32px]">{title}</h1>
+          <p className="mt-2 text-sm text-white/65 sm:truncate">{subtitle}</p>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap sm:gap-3">
         {children}
 
         {showBell && <Bell_ />}
@@ -278,7 +278,7 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
             onChange={onRange}
             options={rangeOptions}
             icon={<Calendar size={17} className="text-white/80" />}
-            className="hidden sm:block"
+            className="shrink-0"
           />
         )}
 
@@ -321,7 +321,7 @@ function Bell_() {
       </button>
 
       {open && (
-        <div className="absolute end-0 top-full z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#141417] shadow-2xl shadow-black/60">
+        <div className="fixed inset-x-4 top-28 z-40 overflow-hidden rounded-2xl sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-80 border border-white/10 bg-[#141417] shadow-2xl shadow-black/60">
           <p className="border-b border-white/[0.07] px-4 py-3 text-sm font-semibold text-white">
             {summary.pendingCount > 0
               ? t('admin.ui.ordersWaiting', { count: summary.pendingCount })
@@ -367,7 +367,7 @@ export function Modal({ title, subtitle, onClose, children, wide = false }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -377,7 +377,7 @@ export function Modal({ title, subtitle, onClose, children, wide = false }) {
           wide ? 'max-w-2xl' : 'max-w-md'
         }`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-6 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-4 py-4 sm:px-6">
           <div>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
             {subtitle && <p className="mt-0.5 text-xs text-white/45">{subtitle}</p>}
@@ -391,7 +391,7 @@ export function Modal({ title, subtitle, onClose, children, wide = false }) {
             ✕
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-4 py-5 sm:px-6">{children}</div>
       </div>
     </div>
   )

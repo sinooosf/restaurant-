@@ -100,12 +100,12 @@ export default function AdminChatbot() {
         subtitle={t('admin.chatbot.subtitle')}
       />
 
-      <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_370px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_370px]">
         {/* Chat */}
         <Card className="flex h-[70dvh] min-h-[480px] flex-col overflow-hidden xl:h-full xl:min-h-0">
-          <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
-            <div className="flex items-center gap-4">
-              <img src={AVATAR} alt="" className="h-14 w-14 rounded-full bg-white object-contain" />
+          <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <img src={AVATAR} alt="" className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-white object-contain" />
               <div>
                 <p className="text-xl font-semibold text-white">ChefBot</p>
                 <p className="flex items-center gap-1.5 text-xs text-white/65">
@@ -118,7 +118,7 @@ export default function AdminChatbot() {
             </span>
           </div>
 
-          <div ref={scroller} className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+          <div ref={scroller} className="flex-1 space-y-5 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
             {messages.map((m) => (
               <Bubble key={m.id} message={m.greeting ? { ...m, text: t('admin.chatbot.greeting') } : m} onNavigate={navigate} />
             ))}
@@ -140,7 +140,7 @@ export default function AdminChatbot() {
               e.preventDefault()
               send(draft)
             }}
-            className="flex items-center gap-3 border-t border-white/[0.07] px-5 py-4"
+            className="flex items-center gap-2 border-t border-white/[0.07] px-3 py-3 sm:gap-3 sm:px-5 sm:py-4"
           >
             <div className="relative flex-1">
               <Sparkles size={16} className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-white/40" />
@@ -164,7 +164,7 @@ export default function AdminChatbot() {
 
         {/* Side panels */}
         <div className="flex flex-col gap-4 xl:min-h-0">
-          <Card className="flex min-h-0 flex-1 flex-col p-5 max-xl:max-h-[420px]">
+          <Card className="flex min-h-0 flex-1 flex-col p-4 max-xl:max-h-[420px] sm:p-5">
             <CardTitle icon={<Zap size={24} fill="currentColor" />} title={t('admin.chatbot.quickActions')} />
             <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden pe-1">
               {QUICK_ACTIONS.map(({ icon: Icon, id }) => (
@@ -187,7 +187,7 @@ export default function AdminChatbot() {
             </div>
           </Card>
 
-          <Card className="flex shrink-0 items-center gap-4 p-5">
+          <Card className="flex shrink-0 items-center gap-4 p-4 sm:p-5">
             <img src={AVATAR} alt="" className="h-16 w-16 shrink-0 rounded-full bg-white object-contain" />
             <div>
               <div className="flex items-center gap-3">
@@ -212,7 +212,7 @@ function Bubble({ message, onNavigate }) {
   if (message.from === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[78%] rounded-2xl rounded-ee-sm bg-[#c4121c] px-5 py-3 text-sm text-white">
+        <div className="max-w-[88%] rounded-2xl rounded-ee-sm bg-[#c4121c] px-4 py-3 sm:max-w-[78%] sm:px-5 text-sm text-white">
           <p>{message.text}</p>
           <p className="mt-1 flex items-center justify-end gap-1 text-[11px] text-white/70">
             {message.time} <CheckCheck size={13} />
@@ -225,7 +225,7 @@ function Bubble({ message, onNavigate }) {
   return (
     <div className="flex items-end gap-3">
       <img src={AVATAR} alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain" />
-      <div className="max-w-[78%] rounded-2xl rounded-es-sm bg-[#1a1a1e] px-5 py-3.5 text-sm text-white/95">
+      <div className="min-w-0 max-w-[85%] rounded-2xl rounded-es-sm bg-[#1a1a1e] px-4 py-3.5 sm:max-w-[78%] sm:px-5 text-sm text-white/95">
         <p className="whitespace-pre-line leading-relaxed">{message.text}</p>
 
         {message.bullets?.length > 0 && (

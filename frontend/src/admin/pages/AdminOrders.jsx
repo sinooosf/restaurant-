@@ -158,14 +158,14 @@ export default function AdminOrders() {
             <StatCard icon={<Star size={26} fill="currentColor" />} tone="purple" label={t('admin.orders.completedOrders')} value={overview.current.completed} delta={percentChange(overview.current.completed, overview.previous.completed)} sub={vs} />
           </div>
 
-          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_330px]">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 2xl:grid-cols-[minmax(0,1fr)_330px]">
             {/* All orders */}
-            <Card className="p-6">
+            <Card className="min-w-0 p-4 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle icon={<List size={24} />} title={t('admin.orders.allOrders')} />
 
                 <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
-                  <div className="relative min-w-[200px] max-w-[330px] flex-1">
+                  <div className="relative min-w-0 basis-full flex-1 sm:min-w-[200px] sm:max-w-[330px] sm:basis-auto">
                     <Search size={16} className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-white/45" />
                     <input
                       value={search}
@@ -179,12 +179,50 @@ export default function AdminOrders() {
                     onChange={setStatus}
                     options={statusFilter}
                     icon={<Funnel size={15} className="text-white/70" />}
-                    className="w-[160px]"
+                    className="w-full sm:w-[160px]"
                   />
                 </div>
               </div>
 
-              <div className="mt-5">
+              {/* Phones: one card per order */}
+              <ul className="mt-4 space-y-3 md:hidden">
+                {rows.length === 0 && (
+                  <li className="py-12 text-center text-sm text-white/40">
+                    {data.orders.length === 0 ? t('admin.orders.empty') : t('admin.orders.noMatch')}
+                  </li>
+                )}
+                {rows.map((order) => (
+                  <li key={order.id} className="rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="font-semibold text-white">#{order.id}</span>
+                        <TablePill tableId={order.tableId} />
+                      </div>
+                      <StatusBadge status={order.status} />
+                    </div>
+                    <p className="mt-2.5 text-sm text-white/80">{itemsSummary(order, 2, lang)}</p>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-white">{money(order.total, lang)}</p>
+                        <p className="text-xs text-white/50">{clockTime(order.createdAt, lang)}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelected(order)}
+                          className="rounded-lg bg-white/[0.07] px-4 py-2 text-xs font-medium text-white transition hover:bg-white/[0.13]"
+                        >
+                          {t('admin.orders.view')}
+                        </button>
+                        <RowMenu order={order} busy={busyId === order.id} onChange={changeStatus} />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Tablets and computers: the table */}
+              <div className="mt-5 hidden md:block">
                 <table className="w-full table-fixed text-start text-sm">
                   <colgroup>
                     <col className="w-[64px]" />
@@ -280,7 +318,7 @@ function Pagination({ page, pageCount, onChange }) {
   for (let p = start; p <= Math.min(pageCount, start + 4); p += 1) pages.push(p)
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {pages.map((p) => (
         <button
           key={p}
@@ -367,7 +405,7 @@ function OrderStatusPanel({ counts }) {
   const rows = ['preparing', 'almost', 'ready', 'completed', 'cancelled']
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <CardTitle icon={<LifeBuoy size={24} />} title={t('admin.orders.statusPanel')} />
         <span className="flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/85">
@@ -416,7 +454,7 @@ function RecentActivity({ orders }) {
     })
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <CardTitle icon={<Zap size={24} fill="currentColor" />} title={t('admin.orders.recent')} />
 
       <ul className="mt-4 space-y-4">

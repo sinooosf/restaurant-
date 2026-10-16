@@ -132,8 +132,10 @@ router.delete('/categories/:id', async (req, res, next) => {
     if (used.rows[0].n > 0) {
       return res.status(409).json({ error: 'Move or delete the dishes in this category first.' })
     }
-    const result = await pool.query('DELETE FROM categories WHERE id = $1 RETURNING id', [req.params.id])
+    const result = await pool.query('DELETE FROM categories WHERE id = $1 RETURNING id, image', [req.params.id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'Category not found.' })
+    // Free the space of the category's uploaded picture (if it had one).
+    await dropUnusedUpload(result.rows[0].image).catch(() => {})
     res.json({ ok: true })
   } catch (err) {
     next(err)

@@ -124,12 +124,15 @@ export default function SalesChart({
   return (
     <div>
       {/* The plotted area always runs left to right; only the text is translated. */}
+      {/* On a phone the chart keeps a readable size and scrolls sideways. */}
+      <div className="overflow-x-auto pb-1">
       <div
         ref={wrapRef}
         dir="ltr"
-        className="relative"
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHover(null)}
+        className="relative min-w-[640px]"
+        onPointerMove={handleMove}
+        onPointerDown={handleMove}
+        onPointerLeave={() => setHover(null)}
       >
         <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full select-none" role="img" aria-label={t('admin.ui.salesChart')}>
           <defs>
@@ -219,6 +222,7 @@ export default function SalesChart({
             </p>
           </div>
         )}
+      </div>
       </div>
 
       <div className="mt-2 flex items-center gap-6 ps-2 text-[13px] text-white/75">

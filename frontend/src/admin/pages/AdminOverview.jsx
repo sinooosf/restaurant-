@@ -133,7 +133,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
       </div>
 
       {/* Chart */}
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <CardTitle
             icon={<ChartNoAxesCombined size={26} />}
@@ -141,7 +141,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
             subtitle={isToday ? t('admin.overview.salesSubToday') : t('admin.overview.salesSubYesterday')}
           />
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex overflow-hidden rounded-full bg-white/[0.05] p-0.5">
               {[
                 ['orders', t('admin.overview.metricOrders')],
@@ -151,7 +151,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
                   key={key}
                   type="button"
                   onClick={() => setMetric(key)}
-                  className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition sm:px-5 ${
                     metric === key ? 'bg-[#d9151f] text-white' : 'text-white/55 hover:text-white'
                   }`}
                 >
@@ -186,8 +186,8 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
       </Card>
 
       {/* Bottom row */}
-      <div className="grid gap-4 xl:grid-cols-[1.9fr_1fr_0.95fr]">
-        <Card className="p-6">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)_minmax(0,0.95fr)]">
+        <Card className="min-w-0 p-4 sm:p-6">
           <CardTitle
             icon={<List size={24} />}
             title={t('admin.overview.recentOrders')}
@@ -230,7 +230,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <CardTitle icon={<ChartNoAxesCombined size={24} />} title={t('admin.overview.quickStats')} />
 
           <div className="mt-6 space-y-5">

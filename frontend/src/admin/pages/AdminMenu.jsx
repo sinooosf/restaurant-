@@ -187,13 +187,10 @@ export default function AdminMenu() {
   }
 
   async function handleAddCategory(form) {
-    try {
-      const created = await adminCreateCategory(password, form)
-      setCategories((prev) => [...prev, created])
-      setAddingCategory(false)
-    } catch (err) {
-      setError(err.message)
-    }
+    // Errors are left to the dialog, which shows them next to the form.
+    const created = await adminCreateCategory(password, form)
+    setCategories((prev) => [...prev, created])
+    setAddingCategory(false)
   }
 
   async function handleDeleteCategory(category) {
@@ -232,11 +229,11 @@ export default function AdminMenu() {
             <StatCard icon={<Star size={26} fill="currentColor" />} tone="purple" label={t('admin.menu.bestSellers')} value={items.filter((i) => i.isBest).length} sub={t('admin.menu.bestSellersSub')} />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
             {/* Items */}
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="relative min-w-[200px] flex-1">
+                <div className="relative min-w-0 basis-full flex-1 sm:min-w-[200px] sm:basis-auto">
                   <Search size={16} className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-white/45" />
                   <input
                     value={search}
@@ -250,24 +247,24 @@ export default function AdminMenu() {
                   onChange={setActiveCategory}
                   options={[{ value: 'all', label: t('admin.menu.allCategories') }, ...categories.map((c) => ({ value: c.id, label: categoryName(c) }))]}
                   icon={<LayoutGrid size={16} className="text-white/70" />}
-                  className="w-[190px]"
+                  className="w-full sm:w-[190px]"
                   align="left"
                 />
                 <PrimaryButton
-                  className="h-11"
+                  className="h-11 w-full sm:w-auto"
                   onClick={() => setEditing({ ...EMPTY_ITEM, categoryId: categories[0]?.id || '' })}
                 >
                   <Plus size={18} /> {t('admin.menu.addItem')}
                 </PrimaryButton>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                 {[{ id: 'all', name: t('admin.menu.all') }, ...categories].map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => setActiveCategory(c.id)}
-                    className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+                    className={`shrink-0 whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium transition ${
                       activeCategory === c.id
                         ? 'bg-[#e11d28] text-white'
                         : 'bg-white/[0.06] text-white/75 hover:bg-white/[0.11]'
@@ -326,7 +323,7 @@ export default function AdminMenu() {
                         </span>
                       </button>
                       {countIn(c.id) === 0 && (
-                        <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })} className="text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100">
+                        <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })} className="p-1 text-white/50 transition hover:text-red-400 md:text-white/30 md:opacity-0 md:group-hover:opacity-100">
                           <Trash2 size={15} />
                         </button>
                       )}
@@ -485,7 +482,7 @@ function ItemModal({ initial, categories, onClose, onSave }) {
           <input className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label={t('admin.menu.fieldCategory')}>
             <select className="input" required value={form.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
               {categories.map((c) => (
@@ -525,7 +522,7 @@ function ItemModal({ initial, categories, onClose, onSave }) {
           </button>
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label={t('admin.menu.fieldDiscount')}>
             <input className="input" type="number" min="0" max="90" value={form.discountPercent} onChange={(e) => set('discountPercent', e.target.value)} />
           </Field>
@@ -554,24 +551,60 @@ function ItemModal({ initial, categories, onClose, onSave }) {
   )
 }
 
-const CATEGORY_IMAGES = [
-  ['/images/categories/pizza.png', 'admin.menu.pictureShape.pizza'],
-  ['/images/categories/sandwich.png', 'admin.menu.pictureShape.sandwich'],
-  ['/images/categories/soup.png', 'admin.menu.pictureShape.soup'],
-  ['/images/categories/drink.png', 'admin.menu.pictureShape.drink'],
-]
-
 function CategoryModal({ onClose, onSave }) {
   const { t } = useLanguage()
+  const { password } = useAdminAuth()
   const [name, setName] = useState('')
-  const [image, setImage] = useState(CATEGORY_IMAGES[0][0])
+  const [file, setFile] = useState(null) // the resized picture waiting to be uploaded
+  const [preview, setPreview] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const fileInput = useRef(null)
+
+  // Free the temporary preview address when it is replaced or the dialog closes.
+  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview])
+
+  async function pickFile(event) {
+    const chosen = event.target.files?.[0]
+    event.target.value = '' // lets the same file be chosen again later
+    if (!chosen) return
+
+    try {
+      const blob = await prepareImage(chosen)
+      setFile(blob)
+      setPreview(URL.createObjectURL(blob))
+      setError('')
+    } catch (err) {
+      setError(
+        t(
+          err.code === 'too-big'
+            ? 'admin.menu.imageTooBig'
+            : err.code === 'unreadable'
+              ? 'admin.menu.imageUnreadable'
+              : 'admin.menu.imageNotPicture'
+        )
+      )
+    }
+  }
 
   async function submit(event) {
     event.preventDefault()
+    if (!file) {
+      setError(t('admin.menu.categoryImageRequired'))
+      return
+    }
+
     setSaving(true)
-    await onSave({ name, image })
-    setSaving(false)
+    setError('')
+    try {
+      // Upload the picture first; the category then points to it.
+      const { image } = await adminUploadImage(password, file)
+      await onSave({ name, image })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -581,21 +614,36 @@ function CategoryModal({ onClose, onSave }) {
           <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder={t('admin.menu.categoryPlaceholder')} />
         </Field>
 
-        <Field label={t('admin.menu.fieldPicture')}>
-          <div className="flex gap-2">
-            {CATEGORY_IMAGES.map(([src, labelKey]) => (
-              <button
-                key={src}
-                type="button"
-                onClick={() => setImage(src)}
-                aria-label={t(labelKey)}
-                className={`h-14 w-14 rounded-xl border p-1.5 transition ${image === src ? 'border-[#f0222c] bg-[#f0222c]/10' : 'border-white/10 bg-white/[0.03]'}`}
-              >
-                <img src={src} alt={t(labelKey)} className="h-full w-full object-contain" />
-              </button>
-            ))}
-          </div>
+        <Field label={t('admin.menu.fieldPicture')} hint={t('admin.menu.fieldImageHint')}>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={pickFile}
+            className="hidden"
+            data-testid="category-picture-input"
+          />
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            className="flex w-full items-center gap-4 rounded-xl border border-dashed border-white/20 bg-white/[0.03] p-3 text-start transition hover:border-[#f0222c]/60 hover:bg-white/[0.06]"
+          >
+            {preview ? (
+              <img src={preview} alt="" className="h-16 w-16 shrink-0 rounded-full bg-white object-cover" />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/50">
+                <ImagePlus size={26} />
+              </span>
+            )}
+            <span className="text-sm text-white/80">
+              {preview ? t('admin.menu.changeImage') : t('admin.menu.chooseImage')}
+            </span>
+          </button>
         </Field>
+
+        {error && (
+          <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <GhostButton onClick={onClose}>{t('admin.menu.cancel')}</GhostButton>
