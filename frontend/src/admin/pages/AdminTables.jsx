@@ -288,13 +288,13 @@ function Floor({ tables, positionOf, highlightId, onMove, onDrop, onMenu, menu, 
   const ref = useRef(null)
 
   return (
-    // On a phone the floor keeps its full size and scrolls sideways, so tables
-    // never overlap. Dragging still works (the tables block the page scroll).
+    // On a phone (narrower than 768px) the floor keeps a fixed size and scrolls sideways, so tables
+    // never overlap. On bigger screens the whole floor is shown, no scrolling.
     <div className="mt-4 overflow-x-auto rounded-xl">
     <div
       ref={ref}
       dir="ltr" // the floor plan is a physical map: saved positions never mirror
-      className="relative h-[640px] min-w-[760px] select-none overflow-hidden rounded-xl border border-white/[0.1]"
+      className="relative h-[640px] select-none max-md:min-w-[760px] overflow-hidden rounded-xl border border-white/[0.1]"
       style={{
         // Dark tiled floor
         backgroundColor: '#121214',

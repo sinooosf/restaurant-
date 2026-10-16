@@ -116,23 +116,24 @@ function TrackingSheet({
         ) : (
           <div className="relative mt-8 px-2">
 
-            <div className="absolute inset-x-2 top-3 h-1 rounded-full bg-line" />
+            {/* The line runs from the middle of the first circle to the middle of
+                the last one. Three equal columns keep the circles in the same
+                places whatever the language (French labels are longer). */}
+            <div className="absolute inset-x-[16.667%] top-3 h-1 rounded-full bg-line">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                style={{ width: `${fillPercent}%` }}
+              />
+            </div>
 
-            <div
-              className="absolute start-2 top-3 h-1 rounded-full bg-emerald-500 transition-all duration-700"
-              style={{
-                width: `calc(${fillPercent}% * (100% - 1rem) / 100%)`,
-              }}
-            />
-
-            <div className="relative flex justify-between">
+            <div className="relative grid grid-cols-3">
               {stages.map((stage, index) => {
                 const reached = index <= stageIndex
 
                 return (
                   <div
                     key={stage}
-                    className="flex flex-col items-center gap-2"
+                    className="flex min-w-0 flex-col items-center gap-2"
                   >
                     <div
                       className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition-colors ${
@@ -149,7 +150,7 @@ function TrackingSheet({
                     </div>
 
                     <span
-                      className={`text-[11px] ${
+                      className={`text-center text-[11px] leading-tight ${
                         reached
                           ? 'text-cream'
                           : 'text-cream/40'

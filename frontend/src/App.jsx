@@ -48,6 +48,10 @@ function CustomerShell() {
   const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
+    // The language screen's flag is fetched right away (not after the menu),
+    // so it is already there when the screen appears.
+    preloadImages(['/flags/sa.jpg'])
+
     Promise.all([loadMenuData(), loadTables(), loadChatbotFaqs()])
       // While the intro plays, download every picture so the menu shows
       // them instantly (gives up after 8 seconds so it never gets stuck).

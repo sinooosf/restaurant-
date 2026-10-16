@@ -46,6 +46,8 @@ function SaudiFlag() {
       src="/flags/sa.jpg"
       alt="Saudi Arabia"
       draggable="false"
+      loading="eager"
+      decoding="sync"
       className="h-full w-full object-cover"
     />
   )
