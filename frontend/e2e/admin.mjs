@@ -264,5 +264,101 @@ await scenario('page switching 60 times in a row (memory, timers, unmounted upda
   await ctx.close()
 })
 
+
+await scenario('Add Item with a picture chosen from the computer (the real form, submitted)', async (p) => {
+  const { ctx, page } = await staff({ viewport: { width: 1440, height: 1000 } })
+  watch(page, p, { allow: ['400'] })
+  await adminLogin(page)
+  await page.goto(`${URL}/admin/menu`); await page.waitForTimeout(2200)
+  const before = (await api('/admin/menu-items', { admin: true })).body.length
+  const open = async () => { await page.getByRole('button', { name: /add item/i }).click(); await page.locator('form input').first().waitFor() }
+
+  // 1) no picture -> a clear message, nothing saved
+  await open()
+  await page.locator('form input').first().fill('Camel Burger')
+  await page.locator('form input[type=number]').first().fill('450')
+  await page.locator('form button[type=submit]').click()
+  await page.getByRole('alert').waitFor({ timeout: 3000 }).catch(() => p.push('no message when the picture is missing'))
+  expect(p, (await api('/admin/menu-items', { admin: true })).body.length === before, 'a dish was saved without a picture')
+
+  // 2) things that are not pictures
+  for (const [file, label] of [['/tmp/not-image.txt', 'text file'], ['/tmp/fake.png', 'fake png'], ['/tmp/huge.png', 'huge file']]) {
+    await page.getByTestId('item-picture-input').setInputFiles(file)
+    await page.waitForTimeout(700)
+    const msg = (await page.getByRole('alert').count()) > 0
+    expect(p, msg, `${label}: no error message shown`)
+  }
+  expect(p, (await api('/admin/menu-items', { admin: true })).body.length === before, 'a dish was saved with a bad file')
+
+  // 3) a big phone-style photo: accepted, resized, saved
+  await page.getByTestId('item-picture-input').setInputFiles('/tmp/test-dish.jpg')
+  await page.waitForTimeout(1500)
+  await page.locator('form button[type=submit]').click()
+  await page.waitForTimeout(2500)
+  const items = (await api('/admin/menu-items', { admin: true })).body
+  const made = items.find((i) => i.name === 'Camel Burger')
+  expect(p, !!made, 'the dish was not created')
+  expect(p, made && /^\/uploads\/\d+$/.test(made.image), `dish picture is not an upload: ${made?.image}`)
+  if (made) {
+    const res = await fetch(`${API}${made.image}`)
+    const bytes = (await res.arrayBuffer()).byteLength
+    expect(p, res.status === 200 && res.headers.get('content-type') === 'image/jpeg', 'stored picture cannot be read back')
+    expect(p, bytes < 700 * 1024, `picture was not resized (${Math.round(bytes / 1024)} KB)`)
+  }
+
+  // 4) it shows on the dashboard card and on the customer's phone
+  await page.waitForTimeout(800)
+  const cardOk = await page.evaluate(() => [...document.images].some((i) => i.src.includes('/uploads/') && i.naturalWidth > 0))
+  expect(p, cardOk, 'uploaded picture does not display on the dashboard card')
+  const cust = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const phone = await cust.newPage()
+  watch(phone, p)
+  const { enterCustomer } = await import('./lib.mjs')
+  await enterCustomer(phone, '/ToHomeOrder')
+  const onPhone = await phone.waitForFunction(() => [...document.images].some((i) => i.src.includes('/uploads/') && i.naturalWidth > 0), null, { timeout: 15000 }).then(() => true).catch(() => false)
+  expect(p, onPhone, 'uploaded picture does not display on the customer menu')
+  await cust.close()
+
+  // 5) edit: replace the picture, the old one is freed
+  if (made) {
+    await page.reload(); await page.waitForTimeout(2200)
+    await page.locator('input[placeholder]').first().fill('Camel Burger')
+    await page.waitForTimeout(500)
+    await page.getByRole('button', { name: /edit camel burger/i }).click({ timeout: 4000 }).catch(() => p.push('no edit button'))
+    await page.getByTestId('item-picture-input').setInputFiles('/tmp/test-dish2.png')
+    await page.waitForTimeout(900)
+    await page.locator('form button[type=submit]').click()
+    await page.waitForTimeout(2200)
+    const after = (await api('/admin/menu-items', { admin: true })).body.find((i) => i.id === made.id)
+    expect(p, after && after.image !== made.image, 'the picture was not replaced')
+    expect(p, (await fetch(`${API}${made.image}`)).status === 404, 'the replaced picture was not removed')
+    await api(`/admin/menu-items/${made.id}`, { method: 'DELETE', admin: true })
+  }
+  await ctx.close()
+})
+
+await scenario('Arabic prices use دج (never د.م) on the menu and the dashboard', async (p) => {
+  const { enterCustomer } = await import('./lib.mjs')
+  const cust = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const phone = await cust.newPage()
+  watch(phone, p)
+  await enterCustomer(phone, '/ToHomeOrder', 'ar')
+  const text = await phone.locator('body').innerText()
+  expect(p, text.includes('دج'), 'customer menu (Arabic) does not show دج')
+  expect(p, !text.includes('د.م'), 'customer menu (Arabic) still shows د.م')
+  await cust.close()
+  const { ctx, page } = await staff({ lang: 'ar' })
+  watch(page, p)
+  await adminLogin(page)
+  for (const path of ['/admin', '/admin/orders', '/admin/menu']) {
+    await page.goto(`${URL}${path}`); await page.waitForTimeout(1800)
+    const t = await page.locator('main').innerText()
+    expect(p, !t.includes('د.م'), `${path}: still shows د.م`)
+  }
+  await page.goto(`${URL}/admin/menu`); await page.waitForTimeout(1500)
+  expect(p, (await page.locator('main').innerText()).includes('دج'), 'dashboard menu (Arabic) does not show دج')
+  await ctx.close()
+})
+
 await browser.close()
 process.exit(summary() ? 1 : 0)

@@ -8,15 +8,30 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 
-async function request(path, { method = 'GET', body, password } = {}) {
+// Pictures uploaded from the dashboard are stored by the backend and referenced
+// as "/uploads/<id>". The browser needs the full address to show them, so the
+// loaders below turn that into `<API>/uploads/<id>` — and turn it back before
+// saving, so the database only ever holds the short form.
+export function resolveImage(path) {
+  return typeof path === 'string' && path.startsWith('/uploads/') ? `${API_BASE}${path}` : path
+}
+
+export function rawImage(url) {
+  return typeof url === 'string' && url.startsWith(`${API_BASE}/uploads/`) ? url.slice(API_BASE.length) : url
+}
+
+const withImage = (row) => (row && typeof row === 'object' ? { ...row, image: resolveImage(row.image) } : row)
+
+async function request(path, { method = 'GET', body, password, rawBody, rawType } = {}) {
   const headers = {}
   if (body) headers['Content-Type'] = 'application/json'
+  if (rawBody) headers['Content-Type'] = rawType
   if (password) headers['x-admin-password'] = password
 
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: rawBody ?? (body ? JSON.stringify(body) : undefined),
   })
 
   let data
@@ -56,8 +71,13 @@ async function request(path, { method = 'GET', body, password } = {}) {
 // Public — used by the customer-facing app
 // ---------------------------------------------------------------------
 
-export function fetchMenu() {
-  return request('/menu')
+export async function fetchMenu() {
+  const data = await request('/menu')
+  return {
+    ...data,
+    categories: Array.isArray(data?.categories) ? data.categories.map(withImage) : data?.categories,
+    items: Array.isArray(data?.items) ? data.items.map(withImage) : data?.items,
+  }
 }
 
 export function fetchTables() {
@@ -106,20 +126,38 @@ export function adminLogin(password) {
   return request('/admin/login', { method: 'POST', body: { password } })
 }
 
-export function adminFetchCategories(password) {
-  return request('/admin/categories', { password })
+export async function adminFetchCategories(password) {
+  const rows = await request('/admin/categories', { password })
+  return Array.isArray(rows) ? rows.map(withImage) : rows
 }
 
-export function adminFetchMenuItems(password) {
-  return request('/admin/menu-items', { password })
+export async function adminFetchMenuItems(password) {
+  const rows = await request('/admin/menu-items', { password })
+  return Array.isArray(rows) ? rows.map(withImage) : rows
 }
 
-export function adminCreateMenuItem(password, item) {
-  return request('/admin/menu-items', { method: 'POST', body: item, password })
+export async function adminCreateMenuItem(password, item) {
+  const created = await request('/admin/menu-items', {
+    method: 'POST',
+    body: { ...item, image: rawImage(item.image) },
+    password,
+  })
+  return withImage(created)
 }
 
-export function adminUpdateMenuItem(password, id, changes) {
-  return request(`/admin/menu-items/${id}`, { method: 'PUT', body: changes, password })
+export async function adminUpdateMenuItem(password, id, changes) {
+  const updated = await request(`/admin/menu-items/${id}`, {
+    method: 'PUT',
+    body: changes.image === undefined ? changes : { ...changes, image: rawImage(changes.image) },
+    password,
+  })
+  return withImage(updated)
+}
+
+// Sends one picture (a Blob/File of type image/jpeg, png, webp or gif) and
+// returns its short path, e.g. "/uploads/12".
+export function adminUploadImage(password, blob) {
+  return request('/admin/uploads', { method: 'POST', password, rawBody: blob, rawType: blob.type })
 }
 
 export function adminDeleteMenuItem(password, id) {
@@ -138,8 +176,8 @@ export function adminUpdateTable(password, id, changes) {
   return request(`/admin/tables/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes, password })
 }
 
-export function adminCreateCategory(password, category) {
-  return request('/admin/categories', { method: 'POST', body: category, password })
+export async function adminCreateCategory(password, category) {
+  return withImage(await request('/admin/categories', { method: 'POST', body: category, password }))
 }
 
 export function adminDeleteCategory(password, id) {

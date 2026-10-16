@@ -7,7 +7,7 @@ import {
 } from '../../i18n/translate'
 import { itemName } from '../../i18n/menuText'
 
-// 450 -> "450 DH" / "450 د.م"
+// 450 -> "450 DH" / "450 دج"
 export function money(value, lang = 'en') {
   return formatMoney(lang, value)
 }

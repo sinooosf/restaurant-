@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   ChefHat,
@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   List,
   Pencil,
+  ImagePlus,
   Plus,
   Search,
   Star,
@@ -22,6 +23,7 @@ import {
   adminDeleteMenuItem,
   adminFetchCategories,
   adminFetchMenuItems,
+  adminUploadImage,
   adminUpdateMenuItem,
 } from '../../services/api'
 import {
@@ -40,6 +42,7 @@ import {
 } from '../components/ui'
 import { useLanguage } from '../../i18n/LanguageContext'
 import FadeImage from '../../components/ui/FadeImage'
+import { prepareImage } from '../../utils/prepareImage'
 
 // Each category gets its own color badge (cycled).
 const BADGES = [
@@ -417,17 +420,63 @@ function ItemCard({ item, categoryLabel, badge, saving, onToggle, onEdit, onDele
 
 function ItemModal({ initial, categories, onClose, onSave }) {
   const { t, categoryName } = useLanguage()
+  const { password } = useAdminAuth()
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [file, setFile] = useState(null) // the resized picture waiting to be uploaded
+  const [preview, setPreview] = useState('')
+  const fileInput = useRef(null)
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const editingExisting = Boolean(initial.id)
 
+  // Free the temporary preview address when it is replaced or the dialog closes.
+  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview])
+
+  async function pickFile(event) {
+    const chosen = event.target.files?.[0]
+    event.target.value = '' // lets the same file be chosen again later
+    if (!chosen) return
+
+    try {
+      const blob = await prepareImage(chosen)
+      setFile(blob)
+      setPreview(URL.createObjectURL(blob))
+      setError('')
+    } catch (err) {
+      setError(
+        t(
+          err.code === 'too-big'
+            ? 'admin.menu.imageTooBig'
+            : err.code === 'unreadable'
+              ? 'admin.menu.imageUnreadable'
+              : 'admin.menu.imageNotPicture'
+        )
+      )
+    }
+  }
+
   async function submit(event) {
     event.preventDefault()
+    if (!file && !form.image) {
+      setError(t('admin.menu.imageRequired'))
+      return
+    }
+
     setSaving(true)
-    await onSave(form)
-    setSaving(false)
+    setError('')
+    try {
+      // Upload the chosen picture first; the dish then points to it.
+      const image = file ? (await adminUploadImage(password, file)).image : form.image
+      await onSave({ ...form, image })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const shownPicture = preview || form.image
 
   return (
     <Modal title={editingExisting ? t('admin.menu.editItemTitle') : t('admin.menu.addItemTitle')} onClose={onClose}>
@@ -450,7 +499,30 @@ function ItemModal({ initial, categories, onClose, onSave }) {
         </div>
 
         <Field label={t('admin.menu.fieldImage')} hint={t('admin.menu.fieldImageHint')}>
-          <input className="input" required value={form.image} onChange={(e) => set('image', e.target.value)} />
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={pickFile}
+            className="hidden"
+            data-testid="item-picture-input"
+          />
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            className="flex w-full items-center gap-4 rounded-xl border border-dashed border-white/20 bg-white/[0.03] p-3 text-start transition hover:border-[#f0222c]/60 hover:bg-white/[0.06]"
+          >
+            {shownPicture ? (
+              <img src={shownPicture} alt="" className="h-16 w-16 shrink-0 rounded-lg bg-white object-cover" />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                <ImagePlus size={26} />
+              </span>
+            )}
+            <span className="text-sm text-white/80">
+              {shownPicture ? t('admin.menu.changeImage') : t('admin.menu.chooseImage')}
+            </span>
+          </button>
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
@@ -468,6 +540,10 @@ function ItemModal({ initial, categories, onClose, onSave }) {
             </label>
           </div>
         </div>
+
+        {error && (
+          <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <GhostButton onClick={onClose}>{t('admin.menu.cancel')}</GhostButton>

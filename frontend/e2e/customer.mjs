@@ -266,8 +266,8 @@ await scenario('12 phones ordering at the same moment', async (p) => {
       await enterCustomer(page, t === 'home' ? '/ToHomeOrder' : `/table/${t}`, ['en', 'fr', 'ar'][i % 3])
       await addButtons(page).nth(i % 3).click()
       const place = page.locator('button').filter({ hasText: /PLACE THE ORDER|PASSER|تأكيد|إرسال|اطلب/i }).first()
-      await place.click({ timeout: 5000 })
-      await page.locator('[role=dialog] button, button').filter({ hasText: /YES, PLACE ORDER|OUI|نعم/i }).first().click({ timeout: 5000 })
+      await place.click({ timeout: 20000 })
+      await page.locator('[role=dialog] button, button').filter({ hasText: /YES, PLACE ORDER|OUI|نعم/i }).first().click({ timeout: 20000 })
       // wait (up to 25 s, the machine is busy with 12 browsers) for the server to confirm
       await page.waitForFunction((k) => localStorage.getItem(k), `mtc-order-${t}`, { timeout: 25000 }).catch(() => {})
       const saved = await page.evaluate((k) => localStorage.getItem(k), `mtc-order-${t}`)

@@ -18,7 +18,7 @@ export default {
     'common.dishes_other': '{count} plats',
   },
   ar: {
-    'common.currency': 'د.م',
+    'common.currency': 'دج',
     'common.toHome': 'للمنزل',
     'common.table': 'طاولة {id}',
     'common.items_one': 'صنف واحد',

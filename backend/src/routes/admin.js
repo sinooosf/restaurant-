@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import express, { Router } from 'express'
 import { pool } from '../db.js'
 import { requireAdmin } from '../middleware/auth.js'
 import { HOME_TABLE_ID } from '../migrate.js'
@@ -43,6 +43,59 @@ router.get('/categories', async (req, res, next) => {
     next(err)
   }
 })
+
+// ---------------------------------------------------------------------
+// Pictures uploaded from the dashboard
+//
+// The browser sends the raw picture bytes (Content-Type: image/jpeg, ...).
+// We check the real file signature (not just the label), limit the size, and
+// store it in the database. The dish then points to it as "/uploads/<id>".
+// SVG is refused on purpose: an SVG can carry scripts.
+// ---------------------------------------------------------------------
+const PICTURE_TYPES = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  'image/webp': (b) => b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP',
+  'image/gif': (b) => b.toString('ascii', 0, 4) === 'GIF8',
+}
+
+router.post(
+  '/uploads',
+  express.raw({ type: Object.keys(PICTURE_TYPES), limit: '4mb' }),
+  async (req, res, next) => {
+    try {
+      const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
+      const body = req.body
+
+      if (!PICTURE_TYPES[mime] || !Buffer.isBuffer(body) || body.length < 12) {
+        return res.status(400).json({ error: 'Send a JPG, PNG, WebP or GIF picture.' })
+      }
+      if (!PICTURE_TYPES[mime](body)) {
+        return res.status(400).json({ error: 'That file is not a real picture of the type it claims.' })
+      }
+
+      const result = await pool.query(
+        'INSERT INTO uploads (mime, data, size) VALUES ($1, $2, $3) RETURNING id',
+        [mime, body, body.length],
+      )
+      res.status(201).json({ image: `/uploads/${result.rows[0].id}` })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// Deletes an uploaded picture once no dish or category uses it any more.
+async function dropUnusedUpload(imagePath) {
+  const match = /^\/uploads\/([1-9]\d{0,8})$/.exec(imagePath || '')
+  if (!match) return
+  await pool.query(
+    `DELETE FROM uploads WHERE id = $1
+       AND NOT EXISTS (SELECT 1 FROM menu_items WHERE image = $2)
+       AND NOT EXISTS (SELECT 1 FROM categories WHERE image = $2)`,
+    [match[1], imagePath],
+  )
+}
 
 router.post('/categories', async (req, res, next) => {
   try {
@@ -102,15 +155,21 @@ router.get('/menu-items', async (req, res, next) => {
 router.post('/menu-items', async (req, res, next) => {
   try {
     const { id, categoryId, name, price, image, available, discountPercent, isBest } = req.body || {}
-    if (!isText(id, 80)) {
-      return res.status(400).json({ error: 'id, categoryId, name, price and image are all required.' })
+    if (id !== undefined && id !== null && !isText(id, 80)) {
+      return res.status(400).json({ error: 'The id must be text (or leave it out).' })
     }
     const problem = checkDish(req.body)
     if (problem) return res.status(400).json({ error: problem })
+
+    // No id given (the dashboard form never sends one): make it from the name,
+    // e.g. "Spicy Burger" -> "spicy-burger-4f2a". A random tail keeps it unique.
+    const slug = String(name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'dish'
+    const newId = id || `${slug}-${Math.random().toString(16).slice(2, 6)}`
+
     const result = await pool.query(
       `INSERT INTO menu_items (id, category_id, name, price, image, available, discount_percent, is_best)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [id, categoryId, name, price, image, available ?? true, discountPercent ?? 0, isBest ?? false],
+      [newId, categoryId, name, price, image, available ?? true, discountPercent ?? 0, isBest ?? false],
     )
     res.status(201).json(serializeMenuItem(result.rows[0]))
   } catch (err) {
@@ -125,6 +184,7 @@ router.put('/menu-items/:id', async (req, res, next) => {
     const { categoryId, name, price, image, available, discountPercent, isBest } = req.body || {}
     const problem = checkDish(req.body, { partial: true })
     if (problem) return res.status(400).json({ error: problem })
+    const before = await pool.query('SELECT image FROM menu_items WHERE id = $1', [req.params.id])
     const result = await pool.query(
       `UPDATE menu_items SET
          category_id = COALESCE($1, category_id),
@@ -139,6 +199,10 @@ router.put('/menu-items/:id', async (req, res, next) => {
       [categoryId, name, price, image, available, discountPercent, isBest, req.params.id],
     )
     if (result.rows.length === 0) return res.status(404).json({ error: 'Menu item not found.' })
+    // The old uploaded picture (if any) is no longer used: free the space.
+    if (before.rows[0] && before.rows[0].image !== result.rows[0].image) {
+      await dropUnusedUpload(before.rows[0].image).catch(() => {})
+    }
     res.json(serializeMenuItem(result.rows[0]))
   } catch (err) {
     if (err.code === '23503') return res.status(400).json({ error: 'That category does not exist.' })
@@ -148,8 +212,9 @@ router.put('/menu-items/:id', async (req, res, next) => {
 
 router.delete('/menu-items/:id', async (req, res, next) => {
   try {
-    const result = await pool.query('DELETE FROM menu_items WHERE id = $1 RETURNING id', [req.params.id])
+    const result = await pool.query('DELETE FROM menu_items WHERE id = $1 RETURNING id, image', [req.params.id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'Menu item not found.' })
+    await dropUnusedUpload(result.rows[0].image).catch(() => {})
     res.json({ ok: true })
   } catch (err) {
     next(err)

@@ -6,6 +6,7 @@ import tableRoutes from './routes/tables.js'
 import orderRoutes from './routes/orders.js'
 import chatbotRoutes from './routes/chatbot.js'
 import adminRoutes from './routes/admin.js'
+import uploadRoutes from './routes/uploads.js'
 import { ensureSchema } from './migrate.js'
 
 const app = express()
@@ -23,6 +24,7 @@ app.use('/api/menu', menuRoutes)
 app.use('/api/tables', tableRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/chatbot', chatbotRoutes)
+app.use('/api/uploads', uploadRoutes)
 app.use('/api/admin', adminRoutes)
 
 // Anything that is not an API route: a clear JSON 404 (not an HTML page).

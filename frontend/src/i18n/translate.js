@@ -63,7 +63,7 @@ export function translate(code, key, params) {
   return text
 }
 
-// 450 -> "450 DH" / "450 د.م"  (1200 -> "1,200 DH", "1 200 DH" in French)
+// 450 -> "450 DH" / "450 دج"  (1200 -> "1,200 DH", "1 200 DH" in French)
 export function formatMoney(code, value) {
   const amount = Math.round(Number(value) || 0).toLocaleString(localeOf(code))
   return `${amount} ${translate(code, 'common.currency')}`

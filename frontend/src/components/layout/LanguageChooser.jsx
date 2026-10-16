@@ -38,34 +38,16 @@ function FrenchFlag() {
   )
 }
 
-// The flag of Saudi Arabia: green field, the white Arabic inscription (the
-// Shahada) and a white sword underneath, blade pointing left.
+// The flag of Saudi Arabia, from the picture supplied by the restaurant
+// (public/flags/sa.jpg, already cropped to fit inside the hexagon).
 function SaudiFlag() {
   return (
-    <svg viewBox="0 0 100 116" preserveAspectRatio="xMidYMid slice" className="h-full w-full" role="img" aria-label="Saudi Arabia">
-      <rect width="100" height="116" fill="#006C35" />
-      <text
-        x="50"
-        y="56"
-        textAnchor="middle"
-        fontSize="15"
-        fontWeight="700"
-        fill="#fff"
-        textLength="74"
-        lengthAdjust="spacingAndGlyphs"
-        direction="rtl"
-        fontFamily="Cairo, 'Noto Sans Arabic', sans-serif"
-      >
-        لا إله إلا الله محمد رسول الله
-      </text>
-      {/* sword: blade pointing left, hilt on the right */}
-      <g fill="#fff">
-        <path d="M22 70 H74 Q78 70 78 72 Q78 74 74 74 H22 Z" />
-        <rect x="74" y="67" width="3" height="10" rx="1.4" />
-        <rect x="77" y="69" width="11" height="6" rx="3" />
-        <path d="M17 72 L23 69.4 V74.6 Z" />
-      </g>
-    </svg>
+    <img
+      src="/flags/sa.jpg"
+      alt="Saudi Arabia"
+      draggable="false"
+      className="h-full w-full object-cover"
+    />
   )
 }
 

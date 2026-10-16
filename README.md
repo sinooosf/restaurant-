@@ -173,3 +173,11 @@ cd frontend
 npx playwright install chromium     # once
 E2E_URL=http://localhost:5173 E2E_API=http://localhost:4000/api E2E_PASSWORD=your-staff-password npm run e2e
 ```
+
+---
+
+## Dish pictures from the dashboard
+
+In **Menu → Add Item / Edit**, choose the picture from your computer (JPG, PNG, WebP or GIF).
+It is resized in the browser, uploaded to the backend and stored in the database (table
+`uploads`), so it survives redeploys. Dishes that already use `/images/...` paths keep working.

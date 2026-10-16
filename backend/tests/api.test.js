@@ -388,3 +388,72 @@ describe('server health after all of the above', () => {
     assert.equal((await api('/health')).status, 200)
   })
 })
+
+describe('picture uploads and dish creation without an id', () => {
+  // A tiny but REAL 1x1 PNG and JPEG
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+  const up = (body, type, opts = {}) =>
+    fetch(`${srv.base}/admin/uploads`, { method: 'POST', headers: { 'content-type': type, ...(opts.noAuth ? {} : { 'x-admin-password': ADMIN_PASSWORD }) }, body })
+
+  it('creates a dish with NO id (the dashboard form never sends one) and different ids for equal names', async () => {
+    const cat = (await api('/admin/categories', { admin: true })).body[0].id
+    const a = await api('/admin/menu-items', { method: 'POST', admin: true, body: { categoryId: cat, name: 'Spicy Burger', price: 300, image: '/logo.png' } })
+    const b = await api('/admin/menu-items', { method: 'POST', admin: true, body: { categoryId: cat, name: 'Spicy Burger', price: 300, image: '/logo.png' } })
+    const arabic = await api('/admin/menu-items', { method: 'POST', admin: true, body: { categoryId: cat, name: 'طبق جديد', price: 300, image: '/logo.png' } })
+    assert.equal(a.status, 201, a.text)
+    assert.equal(b.status, 201, b.text)
+    assert.equal(arabic.status, 201, arabic.text)
+    assert.match(a.body.id, /^spicy-burger-/)
+    assert.notEqual(a.body.id, b.body.id)
+    for (const d of [a, b, arabic]) await api(`/admin/menu-items/${d.body.id}`, { method: 'DELETE', admin: true })
+  })
+
+  it('stores a real picture, serves it back with the right headers, and a dish can use it', async () => {
+    const res = await up(PNG, 'image/png')
+    assert.equal(res.status, 201)
+    const { image } = await res.json()
+    assert.match(image, /^\/uploads\/\d+$/)
+    const got = await fetch(`${srv.base}${image}`)
+    assert.equal(got.status, 200)
+    assert.equal(got.headers.get('content-type'), 'image/png')
+    assert.match(got.headers.get('cache-control'), /immutable/)
+    assert.equal(got.headers.get('x-content-type-options'), 'nosniff')
+    assert.deepEqual(Buffer.from(await got.arrayBuffer()), PNG)
+
+    const cat = (await api('/admin/categories', { admin: true })).body[0].id
+    const dish = await api('/admin/menu-items', { method: 'POST', admin: true, body: { categoryId: cat, name: 'Photo dish', price: 100, image } })
+    assert.equal(dish.body.image, image)
+    // deleting the dish frees the picture
+    await api(`/admin/menu-items/${dish.body.id}`, { method: 'DELETE', admin: true })
+    assert.equal((await fetch(`${srv.base}${image}`)).status, 404)
+  })
+
+  it('replacing a dish picture frees the old upload but keeps a shared one', async () => {
+    const cat = (await api('/admin/categories', { admin: true })).body[0].id
+    const first = (await (await up(PNG, 'image/png')).json()).image
+    const second = (await (await up(PNG, 'image/png')).json()).image
+    const x = (await api('/admin/menu-items', { method: 'POST', admin: true, body: { categoryId: cat, name: 'X', price: 1, image: first } })).body
+    const y = (await api('/admin/menu-items', { method: 'POST', admin: true, body: { categoryId: cat, name: 'Y', price: 1, image: first } })).body
+    await api(`/admin/menu-items/${x.id}`, { method: 'PUT', admin: true, body: { image: second } })
+    assert.equal((await fetch(`${srv.base}${first}`)).status, 200, 'still used by Y — must not be deleted')
+    await api(`/admin/menu-items/${y.id}`, { method: 'PUT', admin: true, body: { image: second } })
+    assert.equal((await fetch(`${srv.base}${first}`)).status, 404, 'unused now — must be deleted')
+    for (const d of [x, y]) await api(`/admin/menu-items/${d.id}`, { method: 'DELETE', admin: true })
+  })
+
+  it('refuses everything that is not a genuine picture', async () => {
+    assert.equal((await up(PNG, 'image/png', { noAuth: true })).status, 401)
+    assert.equal((await up('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>', 'image/svg+xml')).status, 400)
+    assert.equal((await up('<html><script>alert(1)</script></html>', 'image/png')).status, 400) // lies about its type
+    assert.equal((await up(PNG, 'image/jpeg')).status, 400) // PNG bytes labelled JPEG
+    assert.equal((await up(Buffer.alloc(0), 'image/png')).status, 400)
+    assert.equal((await up('hello world, plain text', 'text/plain')).status, 400)
+    assert.equal((await up(PNG, 'application/json')).status, 400)
+    assert.equal((await up(Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024)]), 'image/png')).status, 413)
+    for (const id of ['abc', '0', '999999', '-1', '1.5', '%00']) {
+      const r = await fetch(`${srv.base}/uploads/${id}`)
+      assert.equal(r.status, 404, `GET /uploads/${id} -> ${r.status}`)
+    }
+    assert.ok(srv.alive())
+  })
+})

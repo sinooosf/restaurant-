@@ -69,3 +69,14 @@ CREATE TABLE IF NOT EXISTS chatbot_faqs (
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+
+
+-- Pictures uploaded from the dashboard (dish photos). Stored in the database
+-- so they survive redeploys on hosts with a temporary disk.
+CREATE TABLE IF NOT EXISTS uploads (
+  id          SERIAL PRIMARY KEY,
+  mime        TEXT NOT NULL,
+  data        BYTEA NOT NULL,
+  size        INTEGER NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

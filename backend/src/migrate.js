@@ -38,6 +38,16 @@ export async function ensureSchema() {
   )
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploads (
+      id          SERIAL PRIMARY KEY,
+      mime        TEXT NOT NULL,
+      data        BYTEA NOT NULL,
+      size        INTEGER NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `)
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_orders_table_status ON orders(table_id, status);
   `)
 }
