@@ -36,12 +36,14 @@ const FINISHED = ['ready', 'completed', 'cancelled']
 // "Almost ready" / "Ready" / "Cancel" there is what really moves this along.
 const POLL_INTERVAL_MS = 2500
 
-// A "To Home" order is remembered by the phone only (never shared through
-// the table), so it is forgotten after this long.
-const HOME_ORDER_TTL_MS = 12 * 60 * 60 * 1000
+// The phone remembers an order until the customer taps "Done" — whatever the
+// staff did to it (Ready, Completed, Cancelled). As a safety net, an order
+// that was never closed is forgotten after this long, so a phone that comes
+// back the next day does not see yesterday's meal.
+const SAVED_ORDER_TTL_MS = 12 * 60 * 60 * 1000
 
 // The phone remembers which order it placed at each table, so a finished
-// ("Ready" / "Cancelled") order can still be closed after a reload.
+// ("Ready" / "Completed" / "Cancelled") order can still be closed after a reload.
 const orderKey = (tableId) => `mtc-order-${tableId}`
 
 function saveOrderId(tableId, id) {
@@ -175,7 +177,8 @@ export function OrderProvider({ children }) {
   // RESTORE — when someone opens (or re-scans) a table's page:
   //  1. if the table already has an order in progress, bring it back;
   //  2. otherwise, if THIS phone has an order that finished (Ready /
-  //     Cancelled) but was never closed, show it so it can be closed.
+  //     Completed / Cancelled) but was never closed with "Done", show it
+  //     so it can be closed.
   //
   // For the To Home link there is no shared table: only step 2 applies, and
   // it also brings back an order that is still being prepared.
@@ -215,12 +218,13 @@ export function OrderProvider({ children }) {
               const saved = await withRetry(() => getOrder(savedId), { isCancelled })
 
               const sameTable = String(saved.tableId) === String(tableId)
-              const fresh =
-                !isHome || Date.now() - new Date(saved.createdAt).getTime() < HOME_ORDER_TTL_MS
+              const fresh = Date.now() - new Date(saved.createdAt).getTime() < SAVED_ORDER_TTL_MS
 
-              const keep = isHome
-                ? saved.status !== 'completed'
-                : FINISHED.includes(saved.status) && saved.status !== 'completed'
+              // Only the customer's own "Done" button removes an order from
+              // the phone — so Ready, Completed and Cancelled are all kept.
+              // (A table's order that is still being prepared was already
+              // brought back above by the active-order request.)
+              const keep = isHome ? true : FINISHED.includes(saved.status)
 
               if (sameTable && fresh && keep) {
                 found = saved
@@ -359,7 +363,7 @@ export function OrderProvider({ children }) {
   }, [order, tableId, clearTimers, cart])
 
   // -------------------------------------------------------------------------
-  // FINISH — the customer closes a Ready or Cancelled order. Everything goes
+  // FINISH — the customer closes a Ready, Completed or Cancelled order. Everything goes
   // back to zero: no order, empty cart, fresh page for the next order.
   // -------------------------------------------------------------------------
 

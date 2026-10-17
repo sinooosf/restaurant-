@@ -114,7 +114,11 @@ export default function CategoryList({
           }`}
         />
 
-        {/* Scrollable categories */}
+        {/* Scrollable categories.
+            The first and last card have an "auto" outer margin: when all the
+            categories fit, the free space is shared equally on both sides
+            (so they sit in the middle); when they do not fit, the margins
+            become 0 and the row scrolls from its start as usual. */}
         <div
           ref={scrollRef}
           className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-4 pt-3 short:gap-2 short:pb-2 short:pt-2 tiny:pb-1 tiny:pt-1"
@@ -133,7 +137,7 @@ export default function CategoryList({
                 onClick={() => onSelect(category.id)}
                 aria-pressed={isActive}
                 style={{ animationDelay: `${index * 70}ms` }}
-                className={`cat-rise group relative h-[122px] w-[98px] short:h-[92px] short:w-[80px] tiny:h-[74px] tiny:w-[72px] shrink-0 overflow-hidden rounded-3xl border transition-all duration-500 active:scale-95 ${
+                className={`cat-rise group relative first:ms-auto last:me-auto h-[122px] w-[98px] short:h-[92px] short:w-[80px] tiny:h-[74px] tiny:w-[72px] shrink-0 overflow-hidden rounded-3xl border transition-all duration-500 active:scale-95 ${
                   isActive
                     ? 'scale-105 border-maroon-bright bg-gradient-to-b from-maroon-bright via-maroon to-maroon-soft shadow-[0_0_28px_rgba(179,24,28,0.6)]'
                     : 'border-line bg-panel hover:-translate-y-1 hover:border-maroon-bright/60 hover:shadow-[0_0_18px_rgba(179,24,28,0.3)]'

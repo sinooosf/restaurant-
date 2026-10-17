@@ -24,6 +24,17 @@ import { translate } from '../../i18n/translate'
 
 const AVATAR = '/bot.png'
 
+// ChefBot "types" for a moment before answering, like a person would: the
+// three dots show while it works, and a longer answer takes a little longer.
+// (The answer itself is usually ready in a few milliseconds.)
+const MIN_TYPING_MS = 1000
+const MAX_TYPING_MS = 2400
+const typingTime = (reply) => {
+  const length = (reply?.text?.length || 0) + (reply?.bullets?.length || 0) * 25
+  return Math.min(MAX_TYPING_MS, MIN_TYPING_MS + length * 5)
+}
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 const nowTime = (locale) =>
   new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
@@ -77,12 +88,16 @@ export default function AdminChatbot() {
     setMessages((m) => [...m, { id: nextId.current++, from: 'user', text, time: nowTime(locale) }])
     setThinking(true)
 
+    const askedAt = Date.now()
     let reply
     try {
       reply = await answer(text, password, lang)
     } catch (err) {
       reply = { text: translate(lang, 'admin.assistant.error', { message: err.message }) }
     }
+
+    // Keep the typing dots on screen for the rest of the "typing time".
+    await sleep(Math.max(0, typingTime(reply) - (Date.now() - askedAt)))
 
     setMessages((m) => [...m, { id: nextId.current++, from: 'bot', time: nowTime(locale), ...reply }])
     setThinking(false)
