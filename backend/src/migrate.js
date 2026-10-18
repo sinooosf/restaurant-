@@ -8,6 +8,7 @@
 // nothing the second time, and it never deletes or rewrites your data.
 // ---------------------------------------------------------------------------
 import { pool } from './db.js'
+import { TZ } from './time.js'
 
 export const HOME_TABLE_ID = 'home'
 
@@ -49,5 +50,35 @@ export async function ensureSchema() {
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_orders_table_status ON orders(table_id, status);
+  `)
+
+  // The order NUMBER the staff and the customer see ("#22"). It is not the
+  // database id: it counts the orders of one day and starts again at 1 after
+  // midnight (restaurant time zone). `order_day` is the day an order belongs to.
+  await pool.query(`
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_day     DATE;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS daily_number  INTEGER;
+  `)
+
+  // Number the orders that were placed before this upgrade (oldest first, per
+  // day), continuing after any number that is already taken that day.
+  await pool.query(
+    `UPDATE orders o
+        SET order_day = x.d,
+            daily_number = x.n + COALESCE(
+              (SELECT MAX(daily_number) FROM orders t WHERE t.order_day = x.d), 0)
+       FROM (SELECT id,
+                    (created_at AT TIME ZONE $1)::date AS d,
+                    ROW_NUMBER() OVER (PARTITION BY (created_at AT TIME ZONE $1)::date
+                                       ORDER BY created_at, id) AS n
+               FROM orders
+              WHERE daily_number IS NULL) x
+      WHERE o.id = x.id`,
+    [TZ],
+  )
+
+  // A safety net: two orders of the same day can never share a number.
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_day_number ON orders(order_day, daily_number);
   `)
 }

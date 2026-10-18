@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bell, Calendar, ChevronDown, Globe, Menu as MenuIcon } from 'lucide-react'
 import { useAdminShell } from '../AdminShellContext'
 import { useLanguage } from '../../i18n/LanguageContext'
-import { STATUS_META, clockTime, itemsSummary, orderTableLabel } from './format'
+import { STATUS_META, clockTime, itemsSummary, orderNumber, orderTableLabel } from './format'
 
 // A clock that ticks every few seconds ("14:32", 24-hour like the design).
 export function useClock() {
@@ -336,7 +336,7 @@ function Bell_() {
                 <div key={order.id} className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-3 last:border-0">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-white">
-                      #{order.id} · {orderTableLabel(order, lang)}
+                      #{orderNumber(order)} · {orderTableLabel(order, lang)}
                     </p>
                     <p className="truncate text-xs text-white/45">{itemsSummary(order, 2, lang)}</p>
                   </div>

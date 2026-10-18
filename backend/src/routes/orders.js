@@ -2,9 +2,17 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
 import { HOME_TABLE_ID } from '../migrate.js'
+import { TZ } from '../time.js'
 import { normalizeTableId, numericId, parseOrderLines } from '../validate.js'
 
 const router = Router()
+
+// Orders are numbered one after the other (#1, #2, #3...) and the count starts
+// again at 1 after midnight. Two customers ordering at the same instant must
+// never get the same number, so the numbering step takes this lock (it is
+// released automatically at COMMIT). It is the last thing a new order does,
+// so it is held for a few milliseconds only.
+const ORDER_NUMBER_LOCK = 7301
 
 // `db` is the pool, or a client that is already checked out. A route that
 // holds a client must pass it here: asking the pool for a SECOND connection
@@ -68,7 +76,7 @@ router.post('/', async (req, res, next) => {
       'INSERT INTO orders (table_id, status, total) VALUES ($1, $2, $3) RETURNING *',
       [tableId, 'preparing', total],
     )
-    const order = orderResult.rows[0]
+    let order = orderResult.rows[0]
 
     for (const line of resolvedLines) {
       await client.query(
@@ -76,6 +84,20 @@ router.post('/', async (req, res, next) => {
         [order.id, line.id, line.name, line.quantity, line.unitPrice],
       )
     }
+
+    // Give the order today's next number: 1 + the highest number used today
+    // (today = the restaurant's own day, so it starts again at 1 after midnight).
+    await client.query('SELECT pg_advisory_xact_lock($1)', [ORDER_NUMBER_LOCK])
+    const numbered = await client.query(
+      `UPDATE orders
+          SET order_day = today.d,
+              daily_number = COALESCE((SELECT MAX(daily_number) FROM orders WHERE order_day = today.d), 0) + 1
+         FROM (SELECT (now() AT TIME ZONE $2)::date AS d) today
+        WHERE orders.id = $1
+        RETURNING orders.*`,
+      [order.id, TZ],
+    )
+    order = numbered.rows[0]
 
     await client.query('COMMIT')
     res.status(201).json(serializeOrder(order, resolvedLines.map((l) => ({

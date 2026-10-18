@@ -54,6 +54,13 @@ export function longDate(date, lang = 'en') {
   })
 }
 
+// The number staff and customer both see ("#22"): today's running order
+// number, which starts again at 1 after midnight. The database `id` is a
+// different thing (unique forever) and is only used behind the scenes.
+export function orderNumber(order) {
+  return order?.number ?? order?.id
+}
+
 // +12% / -4% / null when there is nothing to compare with.
 export function percentChange(current, previous) {
   if (!previous) return null

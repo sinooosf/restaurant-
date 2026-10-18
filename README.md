@@ -133,6 +133,11 @@ restaurant-system/
 
 ## What changed in this version
 
+- **Order numbers (#1, #2, #3…)** — every order gets a number that the customer sees at the top-left
+  of the progress sheet and the staff see on the dashboard (Overview, Orders, notifications, ChefBot), so
+  both can talk about the same order. The count **starts again at #1 at midnight** in `RESTAURANT_TZ`.
+  (The database `id` is a different, ever-growing number used behind the scenes.) Existing orders are
+  numbered automatically, per day, the first time the server starts.
 - **ToHomeOrder link** — for customers who order without a table. Open `/ToHomeOrder`
   (it is always the last link in Tables → *QR Links*). Their orders appear in the
   dashboard as **To Home** instead of a table number. Each phone only ever sees its own

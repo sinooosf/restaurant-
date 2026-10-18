@@ -23,7 +23,7 @@ import {
   adminFetchOverview,
   adminFetchTables,
 } from '../services/api'
-import { STATUS_META, clockTime, hourLabel, itemsSummary, money, orderTableLabel } from './components/format'
+import { STATUS_META, clockTime, hourLabel, itemsSummary, money, orderNumber, orderTableLabel } from './components/format'
 import { localeOf, tableLabelFor, translate } from '../i18n/translate'
 import { itemName, categoryName } from '../i18n/menuText'
 
@@ -190,17 +190,26 @@ async function busiestHour(d) {
   return { text: d.tr('busiest', { hour: d.hour(top.hour), orders: d.cnt('order', top.orders), money: d.money(top.revenue) }) }
 }
 
+// Staff say "order 22" meaning the number they SEE on the dashboard: today's
+// running number, not the database id. Find that one among today's orders.
+async function lookupOrderNumber(d, number) {
+  const { orders } = await d.orders()
+  const found = orders.find((o) => String(orderNumber(o)) === String(number))
+  if (!found) return { text: d.tr('orderNotFound', { id: number }) }
+  return lookupOrder(d, found.id)
+}
+
 async function lookupOrder(d, id) {
   try {
     const o = await d.order(id)
     return {
-      text: d.tr('orderLine', { id: o.id, table: d.orderTable(o) }),
+      text: d.tr('orderLine', { id: orderNumber(o), table: d.orderTable(o) }),
       bullets: [
         { tone: o.status, label: d.status(o.status) },
         { tone: 'neutral', label: d.items(o, 6) },
         { tone: 'neutral', label: d.tr('orderTotal', { money: d.money(o.total), time: d.time(o.createdAt) }) },
       ],
-      actions: [d.open('viewInOrders', `/admin/orders?q=${o.id}`)],
+      actions: [d.open('viewInOrders', `/admin/orders?q=${orderNumber(o)}`)],
     }
   } catch {
     return { text: d.tr('orderNotFound', { id }) }
@@ -227,8 +236,8 @@ async function longestWaiting(d) {
   const o = open[open.length - 1]
   const mins = Math.max(0, Math.round((Date.now() - new Date(o.createdAt)) / 60000))
   return {
-    text: d.tr('longestWait', { id: o.id, table: d.orderTable(o), minutes: d.cnt('minute', mins), status: d.status(o.status).toLowerCase() }),
-    actions: [d.open('viewInOrders', `/admin/orders?q=${o.id}`)],
+    text: d.tr('longestWait', { id: orderNumber(o), table: d.orderTable(o), minutes: d.cnt('minute', mins), status: d.status(o.status).toLowerCase() }),
+    actions: [d.open('viewInOrders', `/admin/orders?q=${orderNumber(o)}`)],
   }
 }
 
@@ -237,7 +246,7 @@ async function readyOrders(d) {
   if (!ready.length) return { text: d.tr('noReady') }
   return {
     text: d.tr('readyList', { orders: d.cnt('order', ready.length) }),
-    bullets: ready.map((o) => ({ tone: 'ready', label: `#${o.id} — ${d.orderTable(o)}` })),
+    bullets: ready.map((o) => ({ tone: 'ready', label: `#${orderNumber(o)} — ${d.orderTable(o)}` })),
     actions: [d.open('openOrders', '/admin/orders')],
   }
 }
@@ -247,7 +256,7 @@ async function homeOrders(d) {
   const open = home.filter((o) => OPEN.includes(o.status))
   return {
     text: d.tr('homeSummary', { open: d.cnt('order', open.length), total: home.length }),
-    bullets: open.map((o) => ({ tone: o.status, label: `#${o.id} — ${d.items(o)}` })),
+    bullets: open.map((o) => ({ tone: o.status, label: `#${orderNumber(o)} — ${d.items(o)}` })),
     actions: [d.open('openOrders', '/admin/orders?q=to%20home')],
   }
 }
@@ -258,7 +267,7 @@ async function tableOrders(d, n) {
   if (!mine.length) return { text: d.tr('tableNoOrders', { n }) }
   const last = mine[0]
   return {
-    text: d.tr('tableOrders', { n, orders: d.cnt('order', mine.length), id: last.id }),
+    text: d.tr('tableOrders', { n, orders: d.cnt('order', mine.length), id: orderNumber(last) }),
     bullets: [
       { tone: last.status, label: d.status(last.status) },
       { tone: 'neutral', label: d.items(last, 6) },
@@ -413,7 +422,7 @@ const RULES = [
   { when: (t) => has(t, 'help', 'faq', 'what can you', 'what do you', 'commands', 'examples', 'aide', 'que peux', 'exemples', 'مساعد', 'ساعد', 'ماذا يمكنك', 'امثله'), run: help },
 
   // Specific order / table lookups
-  { when: (t) => /#\s*\d+|order\s*(number|no\.?)?\s*\d+|commande\s*(numero|n°)?\s*\d+|طلب\s*(رقم)?\s*\d+/.test(t), run: (d, t) => lookupOrder(d, (t.match(/#\s*(\d+)/) || t.match(/(?:order|commande|طلب)\s*(?:number|no\.?|numero|n°|رقم)?\s*(\d+)/))[1]) },
+  { when: (t) => /#\s*\d+|order\s*(number|no\.?)?\s*\d+|commande\s*(numero|n°)?\s*\d+|طلب\s*(رقم)?\s*\d+/.test(t), run: (d, t) => lookupOrderNumber(d, (t.match(/#\s*(\d+)/) || t.match(/(?:order|commande|طلب)\s*(?:number|no\.?|numero|n°|رقم)?\s*(\d+)/))[1]) },
   { when: (t) => /(table|طاوله)\s*#?\s*\d+/.test(t) && has(t, 'order', 'ordered', 'eat', 'commande', 'طلب'), run: (d, t) => tableOrders(d, t.match(/(?:table|طاوله)\s*#?\s*(\d+)/)[1]) },
   { when: (t) => /(table|طاوله)\s*#?\s*\d+/.test(t), run: (d, t) => tableStatus(d, t.match(/(?:table|طاوله)\s*#?\s*(\d+)/)[1]) },
 

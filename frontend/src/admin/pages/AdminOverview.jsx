@@ -28,7 +28,7 @@ import {
   TablePill,
   VibesCard,
 } from '../components/ui'
-import { clockTime, itemsSummary, money, percentChange } from '../components/format'
+import { clockTime, itemsSummary, money, orderNumber, percentChange } from '../components/format'
 
 const POLL_MS = 10000
 
@@ -215,7 +215,7 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
                 )}
                 {recent.map((order) => (
                   <tr key={order.id} className="border-t border-white/[0.06] text-white/90">
-                    <td className="py-3 pe-3 font-medium">#{order.id}</td>
+                    <td className="py-3 pe-3 font-medium">#{orderNumber(order)}</td>
                     <td className="py-3 pe-3 text-white/70">
                       {tableLabel(order.tableId)}
                     </td>

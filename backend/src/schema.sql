@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS orders (
               CONSTRAINT orders_status_check
               CHECK (status IN ('preparing', 'almost', 'ready', 'completed', 'cancelled')),
   total       INTEGER NOT NULL,
+  -- The "#22" shown to staff and customer: counts the orders of one day and
+  -- starts again at 1 after midnight. (See orders.js and migrate.js.)
+  order_day     DATE,
+  daily_number  INTEGER,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

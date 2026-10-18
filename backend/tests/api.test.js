@@ -1,6 +1,7 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { resetDatabase, startServer, firstMenuItems, ADMIN_PASSWORD } from './helpers.js'
+import pg from 'pg'
+import { resetDatabase, startServer, firstMenuItems, ADMIN_PASSWORD, TEST_DB } from './helpers.js'
 
 let srv
 let api
@@ -455,5 +456,68 @@ describe('picture uploads and dish creation without an id', () => {
       assert.equal(r.status, 404, `GET /uploads/${id} -> ${r.status}`)
     }
     assert.ok(srv.alive())
+  })
+})
+
+// The "#22" that staff and customer both see: one number per order, counting up
+// during the day and starting again at 1 after midnight.
+describe('order numbers (#1, #2, ... restart every day)', () => {
+  const runSql = async (sql) => {
+    const isLocal = /localhost|127\.0\.0\.1/.test(TEST_DB)
+    const client = new pg.Client({ connectionString: TEST_DB, ssl: isLocal ? false : { rejectUnauthorized: false } })
+    await client.connect()
+    try { return await client.query(sql) } finally { await client.end() }
+  }
+
+  it('counts up one by one, and the customer and the dashboard see the same number', async () => {
+    const a = (await place('1', [line()])).body
+    const b = (await place('2', [line()])).body
+    const c = (await place('3', [line()])).body
+    assert.equal(b.number, a.number + 1)
+    assert.equal(c.number, b.number + 1)
+
+    // what the customer's phone polls
+    assert.equal((await api(`/orders/${b.id}`)).body.number, b.number)
+    // what the dashboard lists
+    const list = (await api('/admin/orders?range=today', { admin: true })).body.orders
+    assert.equal(list.find((o) => o.id === b.id).number, b.number)
+    // adding dishes to the order keeps its number
+    const more = await api(`/orders/${b.id}/items`, { method: 'POST', body: { items: [line(1)] } })
+    assert.equal(more.body.number, b.number)
+  })
+
+  it('never gives two orders the same number, even when 40 customers order at the same moment', async () => {
+    const results = await Promise.all(Array.from({ length: 40 }, (_, i) => place(String((i % 5) + 1), [line()])))
+    assert.ok(results.every((r) => r.status === 201), 'every order must be accepted')
+    const numbers = results.map((r) => r.body.number).sort((x, y) => x - y)
+    assert.equal(new Set(numbers).size, 40, 'duplicate order numbers')
+    assert.equal(numbers[39] - numbers[0], 39, 'numbers must follow each other without gaps')
+  })
+
+  it('starts again at 1 on a new day, and keeps old orders\' numbers', async () => {
+    const before = (await place('1', [line()])).body
+    assert.ok(before.number > 1)
+
+    // pretend midnight just passed: everything placed so far now belongs to yesterday
+    await runSql('UPDATE orders SET order_day = order_day - 1')
+
+    const first = (await place('1', [line()])).body
+    const second = (await place('2', [line()])).body
+    assert.equal(first.number, 1)
+    assert.equal(second.number, 2)
+
+    // the order from "yesterday" kept its own number
+    assert.equal((await api(`/orders/${before.id}`)).body.number, before.number)
+    // the database id is still unique and unchanged: it is not what resets
+    assert.ok(first.id > before.id)
+  })
+
+  it('a cancelled order does not free its number, and a rejected order does not use one', async () => {
+    const x = (await place('1', [line()])).body
+    await api(`/orders/${x.id}/cancel`, { method: 'PATCH' })
+    const rejected = await place('1', [{ id: 'no-such-dish', quantity: 1 }])
+    assert.equal(rejected.status, 400)
+    const y = (await place('1', [line()])).body
+    assert.equal(y.number, x.number + 1)
   })
 })

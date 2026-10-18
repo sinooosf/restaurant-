@@ -47,6 +47,7 @@ import {
   money,
   orderTableLabel,
   percentChange,
+  orderNumber,
 } from '../components/format'
 
 const PAGE_SIZE = 10
@@ -117,7 +118,7 @@ export default function AdminOrders() {
       if (status !== 'all' && order.status !== status) return false
       if (!term) return true
       return (
-        String(order.id).includes(term) ||
+        String(orderNumber(order)).includes(term) ||
         orderTableLabel(order, lang).toLowerCase().includes(term) ||
         order.items.some((item) => item.name.toLowerCase().includes(term))
       )
@@ -195,7 +196,7 @@ export default function AdminOrders() {
                   <li key={order.id} className="rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3.5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="font-semibold text-white">#{order.id}</span>
+                        <span className="font-semibold text-white">#{orderNumber(order)}</span>
                         <TablePill tableId={order.tableId} />
                       </div>
                       <StatusBadge status={order.status} />
@@ -250,7 +251,7 @@ export default function AdminOrders() {
                     )}
                     {rows.map((order) => (
                       <tr key={order.id} className="border-b border-white/[0.05] last:border-0">
-                        <td className="py-3.5 pe-3 font-medium text-white">#{order.id}</td>
+                        <td className="py-3.5 pe-3 font-medium text-white">#{orderNumber(order)}</td>
                         <td className="py-3.5 pe-3"><TablePill tableId={order.tableId} /></td>
                         <td className="truncate py-3.5 pe-3 text-white/85">{itemsSummary(order, 2, lang)}</td>
                         <td className="py-3.5 pe-3 text-white">{money(order.total, lang)}</td>
@@ -367,7 +368,7 @@ function RowMenu({ order, busy, onChange }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label={t('admin.orders.moreActions', { id: order.id })}
+        aria-label={t('admin.orders.moreActions', { id: orderNumber(order) })}
         className="flex h-8 w-8 items-center justify-center rounded-lg text-white/65 transition hover:bg-white/[0.08] hover:text-white"
       >
         {busy ? <Spinner className="h-4 w-4" /> : <EllipsisVertical size={17} />}
@@ -469,7 +470,7 @@ function RecentActivity({ orders }) {
               {isNew ? <ClipboardList size={19} /> : <Check size={19} />}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-white">{t('admin.orders.orderNo', { id: order.id })}</p>
+              <p className="text-sm font-medium text-white">{t('admin.orders.orderNo', { id: orderNumber(order) })}</p>
               <p className="truncate text-xs text-white/50">{text}</p>
             </div>
             <span className="text-xs text-white/40">{clockTime(order.updatedAt, lang)}</span>
@@ -487,7 +488,7 @@ function OrderModal({ order, busy, onChange, onClose }) {
 
   return (
     <Modal
-      title={t('admin.orders.orderNo', { id: order.id })}
+      title={t('admin.orders.orderNo', { id: orderNumber(order) })}
       subtitle={`${orderTableLabel(order, lang)} · ${clockTime(order.createdAt, lang)}`}
       onClose={onClose}
     >

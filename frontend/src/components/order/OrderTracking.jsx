@@ -87,11 +87,23 @@ function TrackingSheet({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 70, opacity: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-sm rounded-t-3xl bg-panel p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:rounded-3xl"
+        className="relative w-full max-w-sm rounded-t-3xl bg-panel p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:rounded-3xl"
       >
 
+        {/* The order's number, top-left (top-right in Arabic) — the same "#22"
+            the restaurant sees on its dashboard, so customer and staff can
+            talk about the same order. */}
+        {order.number != null && (
+          <span
+            aria-label={t('order.number', { n: order.number })}
+            className="absolute start-5 top-5 rounded-full border border-cream/15 bg-ink/50 px-2.5 py-1 text-xs font-semibold leading-none text-cream/80"
+          >
+            <bdi>#{order.number}</bdi>
+          </span>
+        )}
+
         {/* Header */}
-        <p className="text-center text-xs uppercase tracking-wide text-cream/50">
+        <p className="px-11 text-center text-xs uppercase tracking-wide text-cream/50">
           {tableLabel(order.tableId)} &middot; {subtitle}
         </p>
 

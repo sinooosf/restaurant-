@@ -100,6 +100,8 @@ await scenario('order lifecycle: tracking follows the kitchen, add more, reload 
   await page.getByText('Your food is on the way').waitFor({ timeout: 8000 }).catch(() => p.push('tracking sheet did not open'))
   const order = await findOrderOnTable('4')
   expect(p, !!order, 'order not stored for table 4')
+  // the customer sees the same "#N" as the dashboard, top-left of the sheet
+  await page.getByText(`#${order.number}`, { exact: true }).waitFor({ timeout: 4000 }).catch(() => p.push('the order number (#N) is not shown on the tracking sheet'))
   await api(`/admin/orders/${order.id}/status`, { method: 'PATCH', admin: true, body: { status: 'almost' } })
   await page.getByText('Almost done!').waitFor({ timeout: 9000 }).catch(() => p.push('did not show "Almost done!" after the kitchen moved the order'))
   await api(`/admin/orders/${order.id}/status`, { method: 'PATCH', admin: true, body: { status: 'ready' } })

@@ -42,6 +42,9 @@ export function serializeFaq(row) {
 export function serializeOrder(row, items) {
   return {
     id: row.id,
+    // The "#22" people see: today's running number (restarts at 1 every day).
+    // `id` stays the unique database id the app uses behind the scenes.
+    number: row.daily_number ?? row.id,
     tableId: row.table_id,
     status: row.status,
     total: row.total,
