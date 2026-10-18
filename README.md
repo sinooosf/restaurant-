@@ -133,6 +133,11 @@ restaurant-system/
 
 ## What changed in this version
 
+- **Order history (customer phone)** — a new history button in the top bar (between the cart and the chatbot)
+  opens a full-screen list of the orders placed from that phone: number (#22), table, day and time, every dish
+  with its price, the total, and how it ended (Ready / Cancelled, or still in progress). An order stays there
+  until **24 hours after it was placed** — tapping *Done* on the progress sheet does not remove it. It is kept
+  on the phone itself (nothing to set up), and the status is refreshed from the server whenever it is opened.
 - **Order numbers (#1, #2, #3…)** — every order gets a number that the customer sees at the top-left
   of the progress sheet and the staff see on the dashboard (Overview, Orders, notifications, ChefBot), so
   both can talk about the same order. The count **starts again at #1 at midnight** in `RESTAURANT_TZ`.

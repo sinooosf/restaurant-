@@ -1,4 +1,4 @@
-import { Search, ShoppingCart } from 'lucide-react'
+import { History, Search, ShoppingCart } from 'lucide-react'
 // Files in /public are served from the site root — referenced by URL, never imported.
 const Logo = '/logo.png'
 const Bot = '/bot.png'
@@ -11,6 +11,7 @@ export default function Header({
   onOpenSearch,
   onOpenCart,
   onOpenChatbot,
+  onOpenHistory,
   searchDisabled = false,
 }) {
   const { totalCount } = useCart()
@@ -18,7 +19,7 @@ export default function Header({
 
   return (
     <header className="sticky top-0 z-[60] bg-ink/95 px-4 pb-3 pt-4 tiny:pb-1.5 tiny:pt-2 backdrop-blur">
-      <div className="relative flex items-center gap-2.5 rounded-full bg-mist-800/50 px-4 py-2.5 ps-20 backdrop-blur">
+      <div className="relative flex items-center gap-1.5 rounded-full bg-mist-800/50 px-4 py-2.5 ps-20 backdrop-blur min-[400px]:gap-2.5">
 
         {/* Logo */}
         <div className="absolute start-0 top-10 z-10 -translate-y-1/2">
@@ -31,7 +32,7 @@ export default function Header({
 
         {/* Search */}
         <div
-          className={`flex flex-1 items-center gap-2 rounded-full border border-line bg-panel px-4 py-2.5 transition-opacity ${
+          className={`flex min-w-0 flex-1 items-center gap-2 rounded-full border border-line bg-panel px-3 py-2.5 transition-opacity min-[400px]:px-4 ${
             searchDisabled ? 'opacity-50' : ''
           }`}
         >
@@ -54,7 +55,7 @@ export default function Header({
           type="button"
           onClick={onOpenCart}
           aria-label={t('header.openOrder')}
-          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-panel text-cream transition hover:bg-panel-light"
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-panel text-cream transition hover:bg-panel-light min-[400px]:h-11 min-[400px]:w-11"
         >
           <ShoppingCart size={19} />
 
@@ -63,6 +64,17 @@ export default function Header({
               {totalCount}
             </span>
           )}
+        </button>
+
+        {/* Order history (between the cart and the chatbot) */}
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          aria-label={t('header.openHistory')}
+          title={t('header.openHistory')}
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-panel text-cream transition hover:bg-panel-light min-[400px]:h-11 min-[400px]:w-11"
+        >
+          <History size={19} />
         </button>
 
         {/* Chatbot */}
@@ -75,7 +87,7 @@ export default function Header({
           <img
             src={Bot}
             alt={t('header.chatbot')}
-            className="h-11 w-11 rounded-full border border-line bg-panel object-cover"
+            className="h-10 w-10 rounded-full border border-line bg-panel object-cover min-[400px]:h-11 min-[400px]:w-11"
           />
         </button>
       </div>

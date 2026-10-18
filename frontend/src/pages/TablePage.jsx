@@ -19,6 +19,7 @@ import CartBar from '../components/cart/CartBar'
 import OrderTracking from '../components/order/OrderTracking'
 import OrderStatusChip from '../components/order/OrderStatusChip'
 import ChatbotPanel, { ChatbotBoundary } from '../components/chatbot/ChatbotPanel'
+import OrderHistoryPanel from '../components/history/OrderHistoryPanel'
 import TableNotFound from './TableNotFound'
 import { TableChecking, TableOffline } from './TableStatusScreens'
 
@@ -45,6 +46,7 @@ export default function TablePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [chatbotOpen, setChatbotOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // The list of dishes in the cart bar (opened by the cart button in the header).
   const [cartOpen, setCartOpen] = useState(false)
@@ -209,7 +211,7 @@ export default function TablePage() {
 
       {/* Everything under the chat is hidden while it is open, so the
           browser stops painting (and animating) a whole menu nobody can see. */}
-      <div className={`flex min-h-0 flex-1 flex-col ${chatbotOpen ? 'invisible' : ''}`}>
+      <div className={`flex min-h-0 flex-1 flex-col ${chatbotOpen || historyOpen ? 'invisible' : ''}`}>
 
       {/* HEADER */}
       <Header
@@ -218,6 +220,7 @@ export default function TablePage() {
         onOpenSearch={handleOpenSearch}
         onOpenCart={() => setCartOpen((open) => !open)}
         onOpenChatbot={() => setChatbotOpen(true)}
+        onOpenHistory={() => setHistoryOpen(true)}
         searchDisabled={searchLocked}
       />
 
@@ -274,6 +277,9 @@ export default function TablePage() {
           onNavigateToCategory={handleNavigateFromChat}
         />
       </ChatbotBoundary>
+
+      {/* ORDER HISTORY */}
+      <OrderHistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} />
 
       {/* ------------------------------------------------------------------ */}
       {/* LAST ORDER CONFIRMATION */}

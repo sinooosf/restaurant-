@@ -90,7 +90,7 @@ await scenario('cart: 300 rapid taps are capped at 99 and the order still works'
   await ctx.close()
 })
 
-await scenario('order lifecycle: tracking follows the kitchen, add more, reload keeps it, completed clears it', async (p) => {
+await scenario('order lifecycle: tracking follows the kitchen, add more, reload keeps it, completed stays until the customer taps Done, then lives on in the order history', async (p) => {
   const { ctx, page } = await newPhone()
   watch(page, p)
   await enterCustomer(page, '/table/4')
@@ -115,7 +115,19 @@ await scenario('order lifecycle: tracking follows the kitchen, add more, reload 
   await page.locator('[role=radio]').first().waitFor({ timeout: 45000 })
   await page.locator('[role=radiogroup]').locator('xpath=following-sibling::button').click()
   await page.waitForTimeout(3500)
-  expect(p, (await page.getByText("It's ready!").count()) === 0, 'a COMPLETED order came back after reload')
+  // Completed by the staff is NOT the end for the customer: the order stays on
+  // the phone until the customer taps DONE.
+  await page.getByText("It's ready!").waitFor({ timeout: 12000 }).catch(() => p.push('a COMPLETED order was not kept after reload'))
+  await page.getByRole('button', { name: /^done$/i }).click({ timeout: 4000 }).catch(() => p.push('no DONE button on a completed order'))
+  await page.reload()
+  await page.locator('[role=radio]').first().waitFor({ timeout: 45000 })
+  await page.locator('[role=radiogroup]').locator('xpath=following-sibling::button').click()
+  await page.waitForTimeout(3500)
+  expect(p, (await page.getByText("It's ready!").count()) === 0, 'an order the customer closed with DONE came back after reload')
+  // ...but it is still in the order history (kept for 24 hours), with its number and final status
+  await page.getByRole('button', { name: /order history/i }).click({ timeout: 4000 }).catch(() => p.push('no order history button in the header'))
+  await page.getByText(`#${order.number}`, { exact: true }).waitFor({ timeout: 8000 }).catch(() => p.push('the finished order is missing from the order history'))
+  expect(p, (await page.getByText('Ready', { exact: true }).count()) > 0, 'the order history does not show the order as Ready')
   await ctx.close()
 })
 

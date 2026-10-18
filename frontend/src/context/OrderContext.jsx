@@ -19,6 +19,7 @@ import {
 
 import { HOME_TABLE_ID, tableIdFromPath } from '../data/tables'
 import { useCart } from './CartContext'
+import { rememberOrder } from '../utils/orderHistory'
 
 const OrderContext = createContext(null)
 
@@ -106,6 +107,16 @@ export function OrderProvider({ children }) {
   // Which table is this phone looking at? (/table/:tableId or /ToHomeOrder)
   const { pathname } = useLocation()
   const tableId = tableIdFromPath(pathname)
+
+  // -------------------------------------------------------------------------
+  // ORDER HISTORY — every order this phone shows (placed, restored, moved on
+  // by the kitchen, added to...) is remembered for 24 hours, so the history
+  // button in the header can list it even after the customer taps "Done".
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (order) rememberOrder(order)
+  }, [order])
 
   // -------------------------------------------------------------------------
   // TIMER HELPERS
@@ -350,6 +361,9 @@ export function OrderProvider({ children }) {
 
     try {
       await cancelOrderRequest(order.id)
+
+      // The order leaves the screen, but stays in the history as "cancelled".
+      rememberOrder({ ...order, status: 'cancelled' })
 
       if (tableId) clearOrderId(tableId)
 
