@@ -52,6 +52,8 @@ export async function startServer(extraEnv = {}) {
       PORT: String(port),
       ADMIN_PASSWORD,
       FRONTEND_ORIGIN: 'http://localhost:5173',
+      // the tests try many wrong passwords on purpose; the limit has its own test
+      ADMIN_MAX_FAILS: '100000',
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

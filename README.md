@@ -34,7 +34,7 @@ To run the tests: `npm test` (inside `frontend/`).
 ## The staff dashboard
 
 Go to `/admin` (e.g. `http://localhost:5173/admin`) and log in with the
-password in `backend/.env` (`ADMIN_PASSWORD`, defaults to **G6dnC**).
+password in `backend/.env` (`ADMIN_PASSWORD`, the one you chose there).
 
 From there:
 - **Overview** — today's total earnings and order count. Resets itself at

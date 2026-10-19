@@ -203,6 +203,26 @@ describe('admin protection', () => {
     }
   })
 
+  it('blocks an address after too many wrong passwords (and a right one still works before that)', async () => {
+    const strict = await startServer({ ADMIN_MAX_FAILS: '3' })
+    try {
+      const login = (password) =>
+        fetch(`${strict.base}/admin/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password }),
+        })
+      assert.equal((await login('bad1')).status, 401)
+      assert.equal((await login(ADMIN_PASSWORD)).status, 200) // a right one clears the count
+      for (let i = 0; i < 3; i++) assert.equal((await login('bad')).status, 401)
+      const blocked = await login(ADMIN_PASSWORD)
+      assert.equal(blocked.status, 429)
+      assert.ok(Number(blocked.headers.get('retry-after')) > 0)
+    } finally {
+      await strict.stop()
+    }
+  })
+
   it('login succeeds with the right password', async () => {
     assert.equal((await api('/admin/orders', { admin: true })).status, 200)
   })

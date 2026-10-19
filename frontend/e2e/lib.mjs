@@ -3,7 +3,8 @@ import { chromium } from 'playwright'
 
 export const URL = process.env.E2E_URL || 'http://localhost:5173'
 export const API = process.env.E2E_API || 'http://localhost:4100/api'
-export const PASSWORD = process.env.E2E_PASSWORD || 'G6dnC'
+export const PASSWORD = process.env.E2E_PASSWORD // the staff password of the backend you test against
+if (!PASSWORD) throw new Error('Set E2E_PASSWORD to the ADMIN_PASSWORD of the backend you are testing.')
 
 export async function api(path, { method = 'GET', body, admin = false } = {}) {
   const res = await fetch(`${API}${path}`, {

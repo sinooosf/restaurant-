@@ -28,7 +28,7 @@ cp .env.example .env
 
 Open `.env` and set:
 - `DATABASE_URL` — your connection string from step 1
-- `ADMIN_PASSWORD` — the dashboard login password (defaults to `G6dnC`, change it before this goes live for real)
+- `ADMIN_PASSWORD` — the dashboard login password. Use a long random one (12+ characters); there is no default
 - `FRONTEND_ORIGIN` — where your frontend runs (comma-separate more than one, e.g. localhost + your deployed domain)
 
 ## 3. Create the tables and starting menu

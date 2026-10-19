@@ -11,6 +11,10 @@ import { ensureSchema } from './migrate.js'
 
 const app = express()
 
+// Behind Render's proxy: use the visitor's real address (needed so the
+// wrong-password limit counts each visitor separately, not the proxy).
+app.set('trust proxy', 1)
+
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
@@ -67,6 +71,10 @@ process.on('unhandledRejection', (reason) => console.error('Unhandled rejection:
 process.on('uncaughtException', (err) => console.error('Uncaught exception:', err))
 
 const port = process.env.PORT || 4000
+
+if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 12) {
+  console.warn('WARNING: ADMIN_PASSWORD is missing or shorter than 12 characters. Use a long random one before going live.')
+}
 
 // Bring an older database up to date (new columns, the To Home link...)
 // before accepting any request.

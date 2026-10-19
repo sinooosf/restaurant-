@@ -1,6 +1,6 @@
 import express, { Router } from 'express'
 import { pool } from '../db.js'
-import { requireAdmin } from '../middleware/auth.js'
+import { requireAdmin, checkAdminPassword, sendAuthError } from '../middleware/auth.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
 import { checkDish, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
@@ -20,9 +20,8 @@ const router = Router()
 // at login time, instead of only failing later on the first real request.
 router.post('/login', (req, res) => {
   const { password } = req.body || {}
-  if (typeof password !== 'string' || password !== process.env.ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'Incorrect password.' })
-  }
+  const problem = checkAdminPassword(req, password)
+  if (problem) return sendAuthError(res, problem)
   res.json({ ok: true })
 })
 
