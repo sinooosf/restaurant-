@@ -19,7 +19,7 @@ import {
 
 import { HOME_TABLE_ID, tableIdFromPath } from '../data/tables'
 import { useCart } from './CartContext'
-import { rememberOrder } from '../utils/orderHistory'
+import { rememberOrder, readHistory } from '../utils/orderHistory'
 
 const OrderContext = createContext(null)
 
@@ -29,13 +29,22 @@ export const ORDER_STAGES = [
   'ready',
 ]
 
-// Statuses after which nothing more happens to the order.
+// Statuses the customer's sheet shows as "finished" (they close it with DONE).
 const FINISHED = ['ready', 'completed', 'cancelled']
+
+// Statuses after which the staff can do nothing more to the order, so the
+// phone can stop asking the server about it. "Ready" is NOT one of them: the
+// staff still press "Completed" afterwards, and the phone has to notice.
+const CLOSED = ['completed', 'cancelled']
 
 // How often to ask the backend "has this order's status changed yet?"
 // The actual status comes from the dashboard — a staff member clicking
 // "Almost ready" / "Ready" / "Cancel" there is what really moves this along.
 const POLL_INTERVAL_MS = 2500
+
+// Once the order is Ready only "Completed" can still follow, which is not
+// urgent — so the phone checks less often (many phones may stay on this screen).
+const READY_POLL_INTERVAL_MS = 10000
 
 // The phone remembers an order until the customer taps "Done" — whatever the
 // staff did to it (Ready, Completed, Cancelled). As a safety net, an order
@@ -98,6 +107,9 @@ export function OrderProvider({ children }) {
   const [order, setOrder] = useState(null)
   const [trackingVisible, setTrackingVisible] = useState(false)
 
+  // Bumped to look for the customer's order again (see "COMING BACK" below).
+  const [restoreTick, setRestoreTick] = useState(0)
+
   const pollTimer = useRef(null)
 
   // CartProvider is above OrderProvider in App.jsx,
@@ -142,47 +154,131 @@ export function OrderProvider({ children }) {
   // customer closes it.
   // -------------------------------------------------------------------------
 
+  // The latest order on screen, readable from timers and window events
+  // (which would otherwise see an old copy of `order`).
+  const orderRef = useRef(null)
+  useEffect(() => {
+    orderRef.current = order
+  }, [order])
+
+  const pollEvery = useRef(POLL_INTERVAL_MS)
+  const checkRef = useRef(null)
+
   const startPolling = useCallback(
-    (orderId, forTableId) => {
+    (orderId, forTableId, everyMs = POLL_INTERVAL_MS) => {
       if (pollTimer.current) clearInterval(pollTimer.current)
 
-      pollTimer.current = setInterval(async () => {
-        try {
-          const latest = await getOrder(orderId)
-
-          setOrder((previous) => {
-            if (!previous || previous.id !== orderId) return previous
-            return latest
-          })
-
-          if (FINISHED.includes(latest.status)) {
-            clearInterval(pollTimer.current)
-            pollTimer.current = null
-
-            // Make sure the customer sees it. No auto-close.
-            setTrackingVisible(true)
-          }
-        } catch (error) {
-          // The order no longer exists (the staff merged it into another
-          // order, or it was removed): start over cleanly instead of
-          // polling a ghost forever.
-          if (error?.status === 404) {
-            clearInterval(pollTimer.current)
-            pollTimer.current = null
-            clearOrderId(forTableId)
-            setOrder(null)
-            setTrackingVisible(false)
-            return
-          }
-
-          // A single missed poll isn't worth surfacing to the customer —
-          // it'll just try again on the next tick.
-          console.error('Failed to refresh order status:', error)
-        }
-      }, POLL_INTERVAL_MS)
+      pollEvery.current = everyMs
+      pollTimer.current = setInterval(() => {
+        checkRef.current?.(orderId, forTableId)
+      }, everyMs)
     },
     []
   )
+
+  // One "has anything changed?" check. Used by the timer, and also right
+  // away when the customer comes back to the page (see further down).
+  const checkOrder = useCallback(
+    async (orderId, forTableId) => {
+      try {
+        const latest = await getOrder(orderId)
+
+        // The customer closed the order (or moved to another table) while we
+        // were waiting for the answer: nothing to update.
+        const shown = orderRef.current
+        if (!shown || shown.id !== orderId) return
+
+        setOrder((previous) => {
+          if (!previous || previous.id !== orderId) return previous
+          return latest
+        })
+
+        // Make sure the customer sees it the moment it changes to
+        // Ready / Completed / Cancelled. No auto-close.
+        if (FINISHED.includes(latest.status) && shown.status !== latest.status) {
+          setTrackingVisible(true)
+        }
+
+        const tooOld = Date.now() - new Date(latest.createdAt).getTime() > SAVED_ORDER_TTL_MS
+
+        if (CLOSED.includes(latest.status) || tooOld) {
+          clearTimers()
+          return
+        }
+
+        // Ready: only the staff's "Completed" can still follow — watch it,
+        // but less often.
+        if (latest.status === 'ready' && pollEvery.current !== READY_POLL_INTERVAL_MS) {
+          startPolling(orderId, forTableId, READY_POLL_INTERVAL_MS)
+        }
+      } catch (error) {
+        // The order no longer exists (the staff merged it into another
+        // order, or it was removed): start over cleanly instead of
+        // polling a ghost forever.
+        if (error?.status === 404) {
+          clearTimers()
+          clearOrderId(forTableId)
+          setOrder(null)
+          setTrackingVisible(false)
+          return
+        }
+
+        // A single missed poll isn't worth surfacing to the customer —
+        // it'll just try again on the next tick.
+        console.error('Failed to refresh order status:', error)
+      }
+    },
+    [clearTimers, startPolling]
+  )
+
+  useEffect(() => {
+    checkRef.current = checkOrder
+  }, [checkOrder])
+
+  // -------------------------------------------------------------------------
+  // COMING BACK — a phone that was in the pocket (another app, a locked
+  // screen, the browser's Back button) may have missed the kitchen moving the
+  // order on, or may have failed to load it while the connection was down.
+  // The moment the customer is back, ask again right away instead of waiting
+  // for the next tick (or never: the timer stops once nothing is in progress).
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    function onReturn() {
+      if (document.visibilityState === 'hidden') return
+
+      const current = orderRef.current
+
+      // Nothing on screen: try to find the order again.
+      if (!current) {
+        setRestoreTick((n) => n + 1)
+        return
+      }
+
+      if (CLOSED.includes(current.status)) return
+
+      const forTableId = String(current.tableId)
+      checkRef.current?.(current.id, forTableId)
+
+      if (!pollTimer.current) {
+        startPolling(
+          current.id,
+          forTableId,
+          current.status === 'ready' ? READY_POLL_INTERVAL_MS : POLL_INTERVAL_MS
+        )
+      }
+    }
+
+    document.addEventListener('visibilitychange', onReturn)
+    window.addEventListener('pageshow', onReturn)
+    window.addEventListener('online', onReturn)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onReturn)
+      window.removeEventListener('pageshow', onReturn)
+      window.removeEventListener('online', onReturn)
+    }
+  }, [startPolling])
 
   // -------------------------------------------------------------------------
   // RESTORE — when someone opens (or re-scans) a table's page:
@@ -202,6 +298,11 @@ export function OrderProvider({ children }) {
   useEffect(() => {
     if (!tableId) return
 
+    // Looking again (the customer came back) while their order is already on
+    // screen: nothing to find.
+    const shown = orderRef.current
+    if (restoreTick > 0 && shown && String(shown.tableId) === String(tableId)) return
+
     // Another table than the one we were showing: start from a clean slate.
     clearTimers()
     setOrder((previous) =>
@@ -216,18 +317,48 @@ export function OrderProvider({ children }) {
     async function restore() {
       try {
         let found = null
+        let serverDown = false
 
         if (!isHome) {
-          found = await withRetry(() => getActiveOrderForTable(tableId), { isCancelled })
+          try {
+            found = await withRetry(() => getActiveOrderForTable(tableId), { isCancelled })
+          } catch (error) {
+            if (error?.message === 'cancelled') throw error
+            // Could not reach the server at all: fall back on this phone's own
+            // copy of the order below, instead of showing a blank page.
+            serverDown = true
+          }
         }
 
         if (!found) {
           const savedId = readOrderId(tableId)
 
           if (savedId) {
-            try {
-              const saved = await withRetry(() => getOrder(savedId), { isCancelled })
+            let saved = null
+            let fromCopy = false
 
+            try {
+              saved = await withRetry(() => getOrder(savedId), {
+                isCancelled,
+                tries: serverDown ? 1 : 5,
+              })
+            } catch (error) {
+              if (error?.message === 'cancelled') throw error
+
+              if (error?.status === 404) {
+                // Gone for good → forget it.
+                clearOrderId(tableId)
+              } else {
+                // The server cannot be reached right now (asleep, no signal).
+                // The phone keeps a copy of every order it showed, so the
+                // customer still sees their order — it refreshes by itself as
+                // soon as the server answers again.
+                saved = readHistory().find((entry) => String(entry.id) === String(savedId)) || null
+                fromCopy = saved !== null
+              }
+            }
+
+            if (saved) {
               const sameTable = String(saved.tableId) === String(tableId)
               const fresh = Date.now() - new Date(saved.createdAt).getTime() < SAVED_ORDER_TTL_MS
 
@@ -235,17 +366,13 @@ export function OrderProvider({ children }) {
               // the phone — so Ready, Completed and Cancelled are all kept.
               // (A table's order that is still being prepared was already
               // brought back above by the active-order request.)
-              const keep = isHome ? true : FINISHED.includes(saved.status)
+              const keep = isHome || fromCopy || FINISHED.includes(saved.status)
 
               if (sameTable && fresh && keep) {
                 found = saved
               } else {
                 clearOrderId(tableId)
               }
-            } catch (error) {
-              // Gone for good (404) → forget it. Unreachable → keep the id,
-              // so the next visit can still find the order.
-              if (error?.status === 404) clearOrderId(tableId)
             }
           }
         }
@@ -258,8 +385,15 @@ export function OrderProvider({ children }) {
         setOrder(found)
         setTrackingVisible(true)
 
-        if (found.status === 'preparing' || found.status === 'almost') {
-          startPolling(found.id, tableId)
+        // Keep watching until the staff close the order (Completed) or it is
+        // cancelled — also while it is Ready, and also when what we show is
+        // only the phone's own copy (it catches up when the server answers).
+        if (!CLOSED.includes(found.status)) {
+          startPolling(
+            found.id,
+            tableId,
+            found.status === 'ready' ? READY_POLL_INTERVAL_MS : POLL_INTERVAL_MS
+          )
         }
       } catch (error) {
         // If this fails the customer simply sees a fresh page.
@@ -274,7 +408,7 @@ export function OrderProvider({ children }) {
     return () => {
       cancelled = true
     }
-  }, [tableId, clearTimers, startPolling])
+  }, [tableId, restoreTick, clearTimers, startPolling])
 
   // -------------------------------------------------------------------------
   // PLACE ORDER (the first order of a visit)

@@ -167,6 +167,45 @@ await scenario('To Home link: own order stays on this phone only', async (p) => 
   await a.ctx.close(); await b.ctx.close()
 })
 
+await scenario('To Home link: order survives leaving the site, follows the kitchen to Completed, resets after DONE', async (p) => {
+  const { ctx, page } = await newPhone()
+  watch(page, p)
+  const comeBack = async () => {
+    await page.goto('about:blank') // the customer leaves the site...
+    await enterCustomer(page, '/ToHomeOrder') // ...and returns
+  }
+  await enterCustomer(page, '/ToHomeOrder')
+  await addButtons(page).first().click()
+  await page.getByRole('button', { name: /place the order/i }).click()
+  await page.getByRole('button', { name: /yes, place order/i }).click()
+  await page.getByText('Your food is on the way').waitFor({ timeout: 8000 }).catch(() => p.push('To Home: tracking sheet did not open'))
+  const id = Number(await page.evaluate(() => localStorage.getItem('mtc-order-home')))
+  expect(p, id > 0, 'To Home: the order id was not saved on the phone')
+
+  await comeBack()
+  await page.getByText('Your food is on the way').waitFor({ timeout: 12000 }).catch(() => p.push('To Home: the order was not restored after leaving the site and coming back'))
+
+  await api(`/admin/orders/${id}/status`, { method: 'PATCH', admin: true, body: { status: 'ready' } })
+  await page.getByText("It's ready!").waitFor({ timeout: 9000 }).catch(() => p.push('To Home: did not show "It\'s ready!"'))
+  await comeBack()
+  await page.getByText("It's ready!").waitFor({ timeout: 12000 }).catch(() => p.push('To Home: a ready order was not restored after coming back'))
+
+  // Completed by the staff while the customer is looking: the phone keeps the order until DONE.
+  await api(`/admin/orders/${id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+  await page.waitForTimeout(11500) // a Ready order is re-checked every 10 seconds
+  const completed = await api(`/orders/${id}`)
+  expect(p, completed.body?.status === 'completed', 'To Home: the staff completion was not stored')
+  await comeBack()
+  await page.getByText("It's ready!").waitFor({ timeout: 12000 }).catch(() => p.push('To Home: a COMPLETED order was not kept after coming back'))
+
+  await page.getByRole('button', { name: /^done$/i }).click({ timeout: 4000 }).catch(() => p.push('To Home: no DONE button on a completed order'))
+  expect(p, (await page.evaluate(() => localStorage.getItem('mtc-order-home'))) === null, 'To Home: DONE did not clear the saved order')
+  await comeBack()
+  await page.waitForTimeout(3500)
+  expect(p, (await page.getByText("It's ready!").count()) === 0, 'To Home: an order closed with DONE came back')
+  await ctx.close()
+})
+
 await scenario('server errors: failing / slow / offline API never crashes the menu', async (p) => {
   const allow = ['Failed to', 'Could not', 'net::ERR', 'status of 5', 'Failed to restore']
   // (a) API completely unreachable from the start
