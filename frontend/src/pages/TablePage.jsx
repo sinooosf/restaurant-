@@ -6,7 +6,7 @@ import {
   getItemsForCategory,
 } from '../data/menu'
 import { useTableId } from '../hooks/useTableId'
-import { HOME_TABLE_ID } from '../data/tables'
+import { HOME_TABLE_ID, tableLabel } from '../data/tables'
 import { useCart } from '../context/CartContext'
 import { useOrder } from '../context/OrderContext'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -22,7 +22,7 @@ import CallWaiterButton from '../components/waiter/CallWaiterButton'
 import ChatbotPanel, { ChatbotBoundary } from '../components/chatbot/ChatbotPanel'
 import OrderHistoryPanel from '../components/history/OrderHistoryPanel'
 import TableNotFound from './TableNotFound'
-import { TableChecking, TableOffline } from './TableStatusScreens'
+import { TableChecking, TableClosed, TableOffline } from './TableStatusScreens'
 
 // The server's error messages are written in English. Recognise the common
 // ones and show them in the customer's language; anything else gets a
@@ -31,12 +31,13 @@ function friendlyOrderError(message, t) {
   const text = String(message || '')
   if (/not available right now/i.test(text)) return t('err.unavailable')
   if (/already (finished|started)|no longer/i.test(text)) return t('err.finished')
+  if (/being cleaned|out of service/i.test(text)) return t('err.tableClosed')
   if (/empty order|nothing to add/i.test(text)) return t('err.empty')
   return t('err.generic')
 }
 
 export default function TablePage() {
-  const { tableId, status: tableStatus, retry: retryTable } = useTableId()
+  const { tableId, status: tableStatus, retry: retryTable, closed: tableClosed } = useTableId()
   const { t, formatMoney, itemName } = useLanguage()
   const isHome = tableId === HOME_TABLE_ID
 
@@ -122,6 +123,13 @@ export default function TablePage() {
   if (tableStatus === 'checking') return <TableChecking />
   if (tableStatus === 'offline') return <TableOffline onRetry={retryTable} />
   if (tableStatus !== 'valid') return <TableNotFound />
+
+  // Staff closed this table. "Out of service" always shows its message. A
+  // table "being cleaned" does not interrupt guests who already have an order
+  // running, so they can still follow it.
+  if (tableClosed === 'out_of_service' || (tableClosed && !order.order)) {
+    return <TableClosed reason={tableClosed} tableLabel={tableLabel(tableId, t)} onRetry={retryTable} />
+  }
 
   // -------------------------------------------------------------------------
   // CATEGORY

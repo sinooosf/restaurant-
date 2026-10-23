@@ -192,6 +192,7 @@ E2E_URL=http://localhost:5173 E2E_API=http://localhost:4000/api E2E_PASSWORD=you
 - **Print kitchen ticket** — Orders → View → "Print kitchen ticket" (or the ⋮ menu). Made for an 80 mm receipt printer, shows no prices.
 - **Little note on each dish** — Menu → Add/Edit item → "Little note", shown under the dish name for customers.
 - **Chatbot contact answers** — asking for the number, info, contact or manager gives PLACEHOLDER details (`+213 555 ...`, `contact@meetthechefs.example`). Replace them with the real ones in `frontend/src/i18n/locales/chatbot.js` (`chat.r.contact`).
+- **Tables being cleaned / out of service** — set from Dashboard → Tables. Scanning that table's QR shows "This table is being cleaned" or "This table is out of service" instead of the menu, and the menu opens by itself when staff set the table back to normal. The server also refuses new orders for such a table. A table being cleaned keeps serving guests who already have an order; "out of service" always shows its message.
 - The server adds the new columns/table automatically when it starts; existing data is kept.
 
 ## Dish pictures from the dashboard

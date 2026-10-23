@@ -64,6 +64,19 @@ export async function verifyTable(id, { tries = 6, delayMs = 2000, isCancelled =
   return 'offline'
 }
 
+// Asks the server whether staff closed this table for now.
+// Resolves to 'cleaning' | 'out_of_service' | null (open), or undefined when
+// the answer is unknown (no connection) — callers then keep what they showed.
+export async function fetchTableAvailability(id) {
+  try {
+    const table = await fetchTable(id)
+    if (!table || typeof table !== 'object') return undefined
+    return table.unavailable === 'cleaning' || table.unavailable === 'out_of_service' ? table.unavailable : null
+  } catch (err) {
+    return err?.status === 404 ? null : undefined
+  }
+}
+
 // The id of the table in a customer address, or null.
 export function tableIdFromPath(pathname) {
   if (matchPath({ path: HOME_PATH, end: true }, pathname)) return HOME_TABLE_ID

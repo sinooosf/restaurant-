@@ -3,6 +3,7 @@ import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ } from '../time.js'
+import { unavailableReason } from './tables.js'
 import { MAX_ORDER_NOTE, cleanNote, normalizeTableId, numericId, parseOrderLines } from '../validate.js'
 
 const router = Router()
@@ -47,10 +48,22 @@ router.post('/', async (req, res, next) => {
   try {
     await client.query('BEGIN')
 
-    const tableCheck = await client.query('SELECT id FROM restaurant_tables WHERE id = $1', [tableId])
+    const tableCheck = await client.query('SELECT * FROM restaurant_tables WHERE id = $1', [tableId])
     if (tableCheck.rows.length === 0) {
       await client.query('ROLLBACK').catch(() => {})
       return res.status(400).json({ error: `Unknown table: ${tableId}` })
+    }
+
+    // A menu that was already open on a phone must not be able to order for a
+    // table the staff are cleaning or have taken out of service.
+    const closed = await unavailableReason(client, tableCheck.rows[0])
+    if (closed) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(409).json({
+        error: closed === 'cleaning'
+          ? 'This table is being cleaned. Please wait a moment.'
+          : 'This table is out of service. Please ask a staff member.',
+      })
     }
 
     const resolvedLines = []

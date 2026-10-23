@@ -6,6 +6,26 @@ import { normalizeTableId } from '../validate.js'
 
 const router = Router()
 
+// Why customers cannot order at this table right now, or null.
+//   'out_of_service'  staff took the table out of service
+//   'cleaning'        staff marked it as being cleaned — but only while nobody
+//                     has an order in progress there (the dashboard shows such
+//                     a table as "occupied", so the guests keep their table)
+export async function unavailableReason(db, row) {
+  if (row.kind === 'home') return null
+  if (row.status === 'out_of_service') return 'out_of_service'
+  if (row.status === 'cleaning') {
+    const open = await db.query(
+      `SELECT 1 FROM orders
+        WHERE table_id = $1 AND status IN ('preparing', 'almost', 'ready')
+          AND created_at > now() - interval '6 hours' LIMIT 1`,
+      [row.id],
+    )
+    return open.rows.length === 0 ? 'cleaning' : null
+  }
+  return null
+}
+
 // GET /api/tables -> the list of real tables (plus the special "home" link),
 // so the frontend can tell a valid /table/:id link apart from a made-up one —
 // and so adding a table from the dashboard makes its QR link work
@@ -38,7 +58,8 @@ router.get('/:id', async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Table not found.' })
     }
-    res.json(serializeTable(result.rows[0]))
+    const row = result.rows[0]
+    res.json({ ...serializeTable(row), unavailable: await unavailableReason(pool, row) })
   } catch (err) {
     next(err)
   }

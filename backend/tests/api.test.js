@@ -523,6 +523,61 @@ describe('kitchen notes, dish notes and the call-waiter button', () => {
   })
 })
 
+describe('tables that are being cleaned or out of service', () => {
+  const setStatus = (id, status) => api(`/admin/tables/${id}`, { method: 'PATCH', admin: true, body: { status } })
+  // A brand-new table, so no order left over from other tests is open on it.
+  before(async () => {
+    assert.equal((await api('/admin/tables', { method: 'POST', admin: true, body: { id: 'clean1', seats: 2 } })).status, 201)
+  })
+
+  it('the public table answer says why customers cannot order, and it clears again', async () => {
+    assert.equal((await api('/tables/clean1')).body.unavailable, null)
+
+    await setStatus('clean1', 'cleaning')
+    assert.equal((await api('/tables/clean1')).body.unavailable, 'cleaning')
+    await setStatus('clean1', 'out_of_service')
+    assert.equal((await api('/tables/clean1')).body.unavailable, 'out_of_service')
+    await setStatus('clean1', 'auto')
+    assert.equal((await api('/tables/clean1')).body.unavailable, null)
+  })
+
+  it('new orders are refused for such a table (409), other tables are not affected', async () => {
+    for (const status of ['cleaning', 'out_of_service']) {
+      await setStatus('clean1', status)
+      const refused = await place('clean1', [line(0)])
+      assert.equal(refused.status, 409, status)
+      assert.match(refused.body.error, status === 'cleaning' ? /cleaned/ : /out of service/)
+      // another table still works
+      const ok = await place('4', [line(0)])
+      assert.equal(ok.status, 201)
+      await api(`/admin/orders/${ok.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+    }
+    await setStatus('clean1', 'auto')
+    const back = await place('clean1', [line(0)])
+    assert.equal(back.status, 201)
+    await api(`/admin/orders/${back.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+  })
+
+  it('a table "being cleaned" that has guests with an open order keeps serving them', async () => {
+    const order = await place('3', [line(0)])
+    assert.equal(order.status, 201)
+    await setStatus('3', 'cleaning')
+    assert.equal((await api('/tables/3')).body.unavailable, null)
+    assert.equal((await api(`/orders/${order.body.id}/items`, { method: 'POST', body: { items: [line(1)] } })).status, 200)
+
+    // Out of service always wins.
+    await setStatus('3', 'out_of_service')
+    assert.equal((await api('/tables/3')).body.unavailable, 'out_of_service')
+
+    await setStatus('3', 'auto')
+    await api(`/admin/orders/${order.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+  })
+
+  it('the To Home link is never "unavailable"', async () => {
+    assert.equal((await api('/tables/home')).body.unavailable, null)
+  })
+})
+
 describe('server health after all of the above', () => {
   it('is still running and answering', async () => {
     assert.ok(srv.alive())
