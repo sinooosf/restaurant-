@@ -3,7 +3,7 @@ import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ } from '../time.js'
-import { normalizeTableId, numericId, parseOrderLines } from '../validate.js'
+import { MAX_ORDER_NOTE, cleanNote, normalizeTableId, numericId, parseOrderLines } from '../validate.js'
 
 const router = Router()
 
@@ -25,7 +25,7 @@ async function loadOrder(id, db = pool) {
   return serializeOrder(orderResult.rows[0], itemsResult.rows)
 }
 
-// POST /api/orders  { tableId, items: [{ id, quantity }] }
+// POST /api/orders  { tableId, items: [{ id, quantity }], note? }
 //
 // Only `id` and `quantity` from each line are trusted. Name and price are
 // always looked up fresh from menu_items here on the server — never taken
@@ -39,6 +39,9 @@ router.post('/', async (req, res, next) => {
 
   const parsed = parseOrderLines(req.body?.items)
   if (parsed.error) return res.status(400).json({ error: parsed.error })
+
+  const note = cleanNote(req.body?.note, MAX_ORDER_NOTE)
+  if (note.error) return res.status(400).json({ error: note.error })
 
   const client = await pool.connect()
   try {
@@ -73,8 +76,8 @@ router.post('/', async (req, res, next) => {
     const total = resolvedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
 
     const orderResult = await client.query(
-      'INSERT INTO orders (table_id, status, total) VALUES ($1, $2, $3) RETURNING *',
-      [tableId, 'preparing', total],
+      'INSERT INTO orders (table_id, status, total, note) VALUES ($1, $2, $3, $4) RETURNING *',
+      [tableId, 'preparing', total, note.value],
     )
     let order = orderResult.rows[0]
 
@@ -145,6 +148,9 @@ router.post('/:id/items', numericId, async (req, res, next) => {
   const parsed = parseOrderLines(req.body?.items)
   if (parsed.error) return res.status(400).json({ error: parsed.error === 'Cannot place an empty order.' ? 'Nothing to add.' : parsed.error })
 
+  const note = cleanNote(req.body?.note, MAX_ORDER_NOTE)
+  if (note.error) return res.status(400).json({ error: note.error })
+
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -203,13 +209,17 @@ router.post('/:id/items', numericId, async (req, res, next) => {
     }
 
     // The total is always recomputed from the lines, never trusted from the browser.
+    // A note sent with the extra dishes is added under the first one.
     await client.query(
       `UPDATE orders
           SET total = (SELECT COALESCE(SUM(quantity * unit_price), 0)
                          FROM order_items WHERE order_id = $1),
+              note = CASE WHEN $2 = '' THEN note
+                          WHEN note = '' THEN $2
+                          ELSE left(note || E'\n' || $2, 1000) END,
               updated_at = now()
         WHERE id = $1`,
-      [order.id],
+      [order.id, note.value],
     )
 
     const updatedOrder = await loadOrder(order.id, client)

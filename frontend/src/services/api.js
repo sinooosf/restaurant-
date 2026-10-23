@@ -92,11 +92,14 @@ export function fetchChatbotFaqs() {
   return request('/chatbot/faqs')
 }
 
-export function submitOrder({ tableId, items }) {
+export function submitOrder({ tableId, items, note }) {
   // Only id + quantity are sent on purpose — the server looks up the real
   // name and price itself rather than trusting what the browser sends.
+  // `note` is the customer's free text for the kitchen (optional).
   const trimmedItems = items.map((item) => ({ id: item.id, quantity: item.quantity }))
-  return request('/orders', { method: 'POST', body: { tableId, items: trimmedItems } })
+  const body = { tableId, items: trimmedItems }
+  if (note && note.trim()) body.note = note.trim()
+  return request('/orders', { method: 'POST', body })
 }
 
 export function getOrder(orderId) {
@@ -107,9 +110,20 @@ export function getActiveOrderForTable(tableId) {
   return request(`/orders/table/${encodeURIComponent(tableId)}/active`)
 }
 
-export function addItemsToOrder(orderId, items) {
+export function addItemsToOrder(orderId, items, note) {
   const trimmedItems = items.map((item) => ({ id: item.id, quantity: item.quantity }))
-  return request(`/orders/${orderId}/items`, { method: 'POST', body: { items: trimmedItems } })
+  const body = { items: trimmedItems }
+  if (note && note.trim()) body.note = note.trim()
+  return request(`/orders/${orderId}/items`, { method: 'POST', body })
+}
+
+// The "Call waiter" button.
+export function callWaiter(tableId) {
+  return request('/waiter-calls', { method: 'POST', body: { tableId } })
+}
+
+export function getWaiterCall(id) {
+  return request(`/waiter-calls/${id}`)
 }
 
 export function cancelOrder(orderId) {
@@ -158,6 +172,10 @@ export async function adminUpdateMenuItem(password, id, changes) {
 // returns its short path, e.g. "/uploads/12".
 export function adminUploadImage(password, blob) {
   return request('/admin/uploads', { method: 'POST', password, rawBody: blob, rawType: blob.type })
+}
+
+export function adminResolveWaiterCall(password, id) {
+  return request(`/admin/waiter-calls/${id}/resolve`, { method: 'PATCH', password })
 }
 
 export function adminDeleteMenuItem(password, id) {

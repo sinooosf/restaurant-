@@ -187,7 +187,7 @@ describe('admin protection', () => {
     ['POST', '/admin/menu-items'], ['PUT', '/admin/menu-items/x'], ['DELETE', '/admin/menu-items/x'],
     ['POST', '/admin/categories'], ['DELETE', '/admin/categories/x'], ['PATCH', '/admin/orders/1/status'],
     ['PATCH', '/admin/orders/1/move'], ['POST', '/admin/orders/merge'], ['POST', '/admin/chatbot-faqs'],
-    ['GET', '/admin/earnings/today'],
+    ['GET', '/admin/earnings/today'], ['GET', '/admin/waiter-calls'], ['PATCH', '/admin/waiter-calls/1/resolve'],
   ]
 
   it('refuses every admin route without / with a wrong password', async () => {
@@ -420,6 +420,106 @@ describe('admin: orders, move and merge', () => {
     assert.equal((await api('/menu')).body.items.find((i) => i.id === 'nasty').name, nasty)
     await api('/admin/menu-items/nasty', { method: 'DELETE', admin: true })
     assert.ok(srv.alive())
+  })
+})
+
+describe('kitchen notes, dish notes and the call-waiter button', () => {
+  it('an order keeps the customer note, and extra dishes add to it', async () => {
+    const r = await api('/orders', { method: 'POST', body: { tableId: '1', items: [line(0)], note: '  no onions please  ' } })
+    assert.equal(r.status, 201)
+    assert.equal(r.body.note, 'no onions please')
+
+    const more = await api(`/orders/${r.body.id}/items`, { method: 'POST', body: { items: [line(1)], note: 'extra spicy' } })
+    assert.equal(more.status, 200)
+    assert.equal(more.body.note, 'no onions please\nextra spicy')
+
+    // The dashboard sees it too.
+    const admin = await api(`/admin/orders/${r.body.id}`, { admin: true })
+    assert.equal(admin.body.note, 'no onions please\nextra spicy')
+    await api(`/admin/orders/${r.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+  })
+
+  it('an order without a note has an empty note; bad notes are refused (400, never 500)', async () => {
+    const r = await place('2', [line(0)])
+    assert.equal(r.status, 201)
+    assert.equal(r.body.note, '')
+    await api(`/admin/orders/${r.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+
+    for (const note of ['x'.repeat(301), { a: 1 }, 5, ['hi'], 'bad\u0000text']) {
+      const res = await api('/orders', { method: 'POST', body: { tableId: '3', items: [line(0)], note } })
+      assert.equal(res.status, 400, JSON.stringify(note).slice(0, 40))
+    }
+    // 300 characters is allowed.
+    const ok = await place('3', [line(0)])
+    assert.equal(ok.status, 201)
+    await api(`/admin/orders/${ok.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'completed' } })
+  })
+
+  it('a dish note can be set, edited, cleared and is shown on the public menu', async () => {
+    const cats = (await api('/admin/categories', { admin: true })).body
+    const created = await api('/admin/menu-items', {
+      method: 'POST', admin: true,
+      body: { categoryId: cats[0].id, name: 'Noted Dish', price: 40, image: '/logo.png', description: 'Fresh basil, slow-cooked sauce' },
+    })
+    assert.equal(created.status, 201)
+    assert.equal(created.body.description, 'Fresh basil, slow-cooked sauce')
+
+    const menu = await api('/menu')
+    assert.equal(menu.body.items.find((i) => i.id === created.body.id).description, 'Fresh basil, slow-cooked sauce')
+
+    // Changing only the price keeps the note; sending '' clears it.
+    const price = await api(`/admin/menu-items/${created.body.id}`, { method: 'PUT', admin: true, body: { price: 45 } })
+    assert.equal(price.body.description, 'Fresh basil, slow-cooked sauce')
+    const cleared = await api(`/admin/menu-items/${created.body.id}`, { method: 'PUT', admin: true, body: { description: '' } })
+    assert.equal(cleared.body.description, '')
+
+    for (const description of ['x'.repeat(121), { a: 1 }, 7]) {
+      const bad = await api(`/admin/menu-items/${created.body.id}`, { method: 'PUT', admin: true, body: { description } })
+      assert.equal(bad.status, 400, JSON.stringify(description).slice(0, 30))
+    }
+    await api(`/admin/menu-items/${created.body.id}`, { method: 'DELETE', admin: true })
+  })
+
+  it('call waiter: one open call per table, the dashboard sees it, answering closes it', async () => {
+    const first = await api('/waiter-calls', { method: 'POST', body: { tableId: '4' } })
+    assert.equal(first.status, 201)
+    // Tapping again (or two phones at once) gives the SAME call.
+    const [again, again2] = await Promise.all([
+      api('/waiter-calls', { method: 'POST', body: { tableId: '4' } }),
+      api('/waiter-calls', { method: 'POST', body: { tableId: '4' } }),
+    ])
+    assert.equal(again.body.id, first.body.id)
+    assert.equal(again2.body.id, first.body.id)
+
+    assert.equal((await api(`/waiter-calls/${first.body.id}`)).body.resolved, false)
+
+    const list = await api('/admin/waiter-calls', { admin: true })
+    assert.equal(list.body.filter((c) => c.tableId === '4').length, 1)
+    const summary = await api('/admin/summary', { admin: true })
+    assert.ok(summary.body.waiterCalls.some((c) => c.id === first.body.id))
+
+    assert.equal((await api(`/admin/waiter-calls/${first.body.id}/resolve`, { method: 'PATCH', admin: true })).status, 200)
+    assert.equal((await api(`/waiter-calls/${first.body.id}`)).body.resolved, true)
+    // Answering twice is harmless.
+    assert.equal((await api(`/admin/waiter-calls/${first.body.id}/resolve`, { method: 'PATCH', admin: true })).status, 200)
+    assert.equal((await api('/admin/waiter-calls', { admin: true })).body.filter((c) => c.tableId === '4').length, 0)
+
+    // After it was answered the table can call again (a NEW call).
+    const next = await api('/waiter-calls', { method: 'POST', body: { tableId: '4' } })
+    assert.equal(next.status, 201)
+    assert.notEqual(next.body.id, first.body.id)
+    await api(`/admin/waiter-calls/${next.body.id}/resolve`, { method: 'PATCH', admin: true })
+  })
+
+  it('call waiter: refuses bad input and the To Home link, and the dashboard side needs the password', async () => {
+    for (const body of [{}, { tableId: '' }, { tableId: { a: 1 } }, { tableId: 'nope' }, { tableId: 'home' }]) {
+      const res = await api('/waiter-calls', { method: 'POST', body })
+      assert.equal(res.status, 400, JSON.stringify(body))
+    }
+    assert.equal((await api('/waiter-calls/abc')).status, 404)
+    assert.equal((await api('/waiter-calls/999999')).status, 404)
+    assert.equal((await api('/admin/waiter-calls')).status, 401)
+    assert.equal((await api('/admin/waiter-calls/1/resolve', { method: 'PATCH' })).status, 401)
   })
 })
 

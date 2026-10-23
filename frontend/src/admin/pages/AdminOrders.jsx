@@ -10,7 +10,9 @@ import {
   Funnel,
   List,
   LifeBuoy,
+  Printer,
   Search,
+  StickyNote,
   Star,
   UsersRound,
   Zap,
@@ -19,6 +21,7 @@ import {
 import { useLanguage } from '../../i18n/LanguageContext'
 import { useAdminAuth } from '../AdminAuthContext'
 import { useAdminShell } from '../AdminShellContext'
+import { printKitchenTicket } from '../printTicket'
 import {
   adminFetchOrders,
   adminFetchOverview,
@@ -202,6 +205,12 @@ export default function AdminOrders() {
                       <StatusBadge status={order.status} />
                     </div>
                     <p className="mt-2.5 text-sm text-white/80">{itemsSummary(order, 2, lang)}</p>
+                    {order.note && (
+                      <p className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-200/90">
+                        <StickyNote size={13} className="mt-0.5 shrink-0" />
+                        <span className="line-clamp-2 whitespace-pre-line">{order.note}</span>
+                      </p>
+                    )}
                     <div className="mt-3 flex items-center justify-between gap-2">
                       <div>
                         <p className="font-semibold text-white">{money(order.total, lang)}</p>
@@ -253,7 +262,12 @@ export default function AdminOrders() {
                       <tr key={order.id} className="border-b border-white/[0.05] last:border-0">
                         <td className="py-3.5 pe-3 font-medium text-white">#{orderNumber(order)}</td>
                         <td className="py-3.5 pe-3"><TablePill tableId={order.tableId} /></td>
-                        <td className="truncate py-3.5 pe-3 text-white/85">{itemsSummary(order, 2, lang)}</td>
+                        <td className="truncate py-3.5 pe-3 text-white/85">
+                          {order.note && (
+                            <StickyNote size={14} className="me-1.5 inline text-amber-300" title={order.note} aria-label={t('admin.orders.clientNote')} />
+                          )}
+                          {itemsSummary(order, 2, lang)}
+                        </td>
                         <td className="py-3.5 pe-3 text-white">{money(order.total, lang)}</td>
                         <td className="py-3.5 pe-3"><StatusBadge status={order.status} /></td>
                         <td className="hidden py-3.5 pe-3 text-white/70 md:table-cell">{clockTime(order.createdAt, lang)}</td>
@@ -355,7 +369,7 @@ function Pagination({ page, pageCount, onChange }) {
 }
 
 function RowMenu({ order, busy, onChange }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useClickOutside(ref, () => setOpen(false), open)
@@ -379,10 +393,10 @@ function RowMenu({ order, busy, onChange }) {
           {next && (
             <MenuButton onClick={() => { setOpen(false); onChange(order, next.to) }}>{t(next.labelKey)}</MenuButton>
           )}
+          <MenuButton onClick={() => { setOpen(false); printKitchenTicket(order, { t, lang }) }}>{t('admin.orders.print')}</MenuButton>
           {canCancel && (
             <MenuButton danger onClick={() => { setOpen(false); onChange(order, 'cancelled') }}>{t('admin.orders.cancelOrder')}</MenuButton>
           )}
-          {!next && !canCancel && <p className="px-4 py-2 text-xs text-white/40">{t('admin.orders.noActions')}</p>}
         </div>
       )}
     </div>
@@ -506,7 +520,19 @@ function OrderModal({ order, busy, onChange, onClose }) {
         ))}
       </ul>
 
+      {order.note && (
+        <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-300">
+            <StickyNote size={14} /> {t('admin.orders.clientNote')}
+          </p>
+          <p className="mt-1.5 whitespace-pre-line break-words text-sm text-white">{order.note}</p>
+        </div>
+      )}
+
       <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <GhostButton onClick={() => printKitchenTicket(order, { t, lang })}>
+          <Printer size={16} /> {t('admin.orders.print')}
+        </GhostButton>
         {canCancel && (
           <GhostButton disabled={busy} onClick={() => onChange(order, 'cancelled')} className="!border-red-500/30 !text-red-300">
             {t('admin.orders.cancelOrder')}

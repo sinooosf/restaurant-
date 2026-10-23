@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { adminFetchSummary } from '../services/api'
+import { adminFetchSummary, adminResolveWaiterCall } from '../services/api'
 import { useAdminAuth } from './AdminAuthContext'
 
 const ShellContext = createContext(null)
@@ -10,14 +10,14 @@ const SUMMARY_POLL_MS = 5000
 // Browsers only allow sound after the user has clicked something once on the
 // page — logging in counts.
 let audioCtx = null
-function playNewOrderSound() {
+function playTones(tones) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext
     if (!AudioContext) return
     audioCtx = audioCtx || new AudioContext()
     if (audioCtx.state === 'suspended') audioCtx.resume()
 
-    ;[[880, 0], [1175, 0.18], [1568, 0.36]].forEach(([freq, delay]) => {
+    tones.forEach(([freq, delay]) => {
       const osc = audioCtx.createOscillator()
       const gain = audioCtx.createGain()
       const t = audioCtx.currentTime + delay
@@ -31,9 +31,15 @@ function playNewOrderSound() {
       osc.stop(t + 0.55)
     })
   } catch {
-    // no sound available — the badge and bell still show the new order
+    // no sound available — the badge, bell and banner still show the news
   }
 }
+
+// New order: three rising notes.
+const playNewOrderSound = () => playTones([[880, 0], [1175, 0.18], [1568, 0.36]])
+// A table calls the waiter: a different, doorbell-like "ding-dong ding-dong"
+// so staff can tell it apart from a new order without looking.
+const playWaiterSound = () => playTones([[1319, 0], [988, 0.28], [1319, 0.7], [988, 0.98]])
 
 // Shared by the whole dashboard: the live "pending orders" count (the red
 // badge next to Orders in the sidebar, and the notification bell) and the
@@ -41,10 +47,11 @@ function playNewOrderSound() {
 export function AdminShellProvider({ children }) {
   const { password } = useAdminAuth()
 
-  const [summary, setSummary] = useState({ pendingCount: 0, pending: [] })
+  const [summary, setSummary] = useState({ pendingCount: 0, pending: [], waiterCalls: [] })
   const [navOpen, setNavOpen] = useState(false)
   const mounted = useRef(true)
   const seenIds = useRef(null) // order ids already known (null until the first load)
+  const seenCalls = useRef(null) // waiter-call ids already known
 
   const refreshSummary = useCallback(async () => {
     try {
@@ -58,7 +65,15 @@ export function AdminShellProvider({ children }) {
       }
       seenIds.current = new Set([...(seenIds.current || []), ...ids])
 
-      setSummary(data)
+      // A table pressed "Call waiter" -> ring.
+      const calls = Array.isArray(data.waiterCalls) ? data.waiterCalls : []
+      const callIds = new Set(calls.map((c) => c.id))
+      if (seenCalls.current && [...callIds].some((id) => !seenCalls.current.has(id))) {
+        playWaiterSound()
+      }
+      seenCalls.current = new Set([...(seenCalls.current || []), ...callIds])
+
+      setSummary({ ...data, waiterCalls: calls })
     } catch {
       // A missed poll is fine — the next one will catch up.
     }
@@ -75,9 +90,23 @@ export function AdminShellProvider({ children }) {
     }
   }, [refreshSummary])
 
+  // A staff member went to the table: the alert disappears right away.
+  const resolveWaiterCall = useCallback(
+    async (id) => {
+      setSummary((prev) => ({ ...prev, waiterCalls: (prev.waiterCalls || []).filter((c) => c.id !== id) }))
+      try {
+        await adminResolveWaiterCall(password, id)
+      } catch {
+        // not saved: the next refresh brings the alert back, so nothing is lost
+      }
+      refreshSummary()
+    },
+    [password, refreshSummary]
+  )
+
   const value = useMemo(
-    () => ({ summary, refreshSummary, navOpen, setNavOpen }),
-    [summary, refreshSummary, navOpen]
+    () => ({ summary, refreshSummary, resolveWaiterCall, navOpen, setNavOpen }),
+    [summary, refreshSummary, resolveWaiterCall, navOpen]
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

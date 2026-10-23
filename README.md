@@ -186,6 +186,14 @@ E2E_URL=http://localhost:5173 E2E_API=http://localhost:4000/api E2E_PASSWORD=you
 
 ---
 
+## Call waiter, client notes, kitchen ticket
+- **Call waiter** — a red button always visible on every table page (also inside the order status sheet). The dashboard shows a red banner with a doorbell sound until staff press "Answered". One open call per table; the "To Home" link has no button.
+- **Note for the kitchen** — the confirmation box has an optional note ("no onions"). It shows on the dashboard (Orders: yellow icon in the list, "Note from the client" in the order window).
+- **Print kitchen ticket** — Orders → View → "Print kitchen ticket" (or the ⋮ menu). Made for an 80 mm receipt printer, shows no prices.
+- **Little note on each dish** — Menu → Add/Edit item → "Little note", shown under the dish name for customers.
+- **Chatbot contact answers** — asking for the number, info, contact or manager gives PLACEHOLDER details (`+213 555 ...`, `contact@meetthechefs.example`). Replace them with the real ones in `frontend/src/i18n/locales/chatbot.js` (`chat.r.contact`).
+- The server adds the new columns/table automatically when it starts; existing data is kept.
+
 ## Dish pictures from the dashboard
 
 In **Menu → Add Item / Edit**, choose the picture from your computer (JPG, PNG, WebP or GIF).

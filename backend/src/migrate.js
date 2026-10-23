@@ -52,6 +52,23 @@ export async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_orders_table_status ON orders(table_id, status);
   `)
 
+  // A note the customer writes for the kitchen ("no onions"), a short line of
+  // text under each dish on the menu, and the "Call waiter" button.
+  await pool.query(`
+    ALTER TABLE orders     ADD COLUMN IF NOT EXISTS note        TEXT NOT NULL DEFAULT '';
+    ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+
+    CREATE TABLE IF NOT EXISTS waiter_calls (
+      id           SERIAL PRIMARY KEY,
+      table_id     TEXT NOT NULL,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      resolved_at  TIMESTAMPTZ
+    );
+    -- One open call per table: tapping the button twice never rings twice.
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_waiter_calls_open
+      ON waiter_calls(table_id) WHERE resolved_at IS NULL;
+  `)
+
   // The order NUMBER the staff and the customer see ("#22"). It is not the
   // database id: it counts the orders of one day and starts again at 1 after
   // midnight (restaurant time zone). `order_day` is the day an order belongs to.

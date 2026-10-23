@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   available         BOOLEAN NOT NULL DEFAULT TRUE,
   discount_percent  INTEGER NOT NULL DEFAULT 0 CHECK (discount_percent BETWEEN 0 AND 100),
   is_best           BOOLEAN NOT NULL DEFAULT FALSE,
+  description       TEXT NOT NULL DEFAULT '',   -- the little note shown under the dish name
   sort_order        INTEGER NOT NULL DEFAULT 0
 );
 
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS orders (
               CONSTRAINT orders_status_check
               CHECK (status IN ('preparing', 'almost', 'ready', 'completed', 'cancelled')),
   total       INTEGER NOT NULL,
+  note        TEXT NOT NULL DEFAULT '',  -- the customer's note for the kitchen
   -- The "#22" shown to staff and customer: counts the orders of one day and
   -- starts again at 1 after midnight. (See orders.js and migrate.js.)
   order_day     DATE,
@@ -69,6 +71,15 @@ CREATE TABLE IF NOT EXISTS chatbot_faqs (
   answer      TEXT NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- The "Call waiter" button: a customer taps it, the dashboard rings.
+CREATE TABLE IF NOT EXISTS waiter_calls (
+  id           SERIAL PRIMARY KEY,
+  table_id     TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at  TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_waiter_calls_open ON waiter_calls(table_id) WHERE resolved_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);

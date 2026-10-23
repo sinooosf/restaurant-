@@ -21,6 +21,7 @@ export function serializeMenuItem(row) {
     available: row.available,
     discountPercent: row.discount_percent,
     isBest: row.is_best,
+    description: row.description || '',
   }
 }
 
@@ -48,6 +49,7 @@ export function serializeOrder(row, items) {
     tableId: row.table_id,
     status: row.status,
     total: row.total,
+    note: row.note || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
     items: items.map((line) => ({

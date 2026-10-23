@@ -62,6 +62,7 @@ const EMPTY_ITEM = {
   discountPercent: 0,
   isBest: false,
   available: true,
+  description: '',
 }
 
 const finalPrice = (item) =>
@@ -140,6 +141,7 @@ export default function AdminMenu() {
         available: item.available,
         discountPercent: Number(item.discountPercent) || 0,
         isBest: item.isBest,
+        description: item.description || '',
         ...changes,
       })
       setItems((prev) => prev.map((c) => (c.id === item.id ? updated : c)))
@@ -388,6 +390,7 @@ function ItemCard({ item, categoryLabel, badge, saving, onToggle, onEdit, onDele
       </div>
 
       <h3 className="mt-3 truncate text-[15px] font-semibold text-white">{name}</h3>
+      {item.description && <p className="mt-0.5 truncate text-xs text-white/45">{item.description}</p>}
       <span className={`mt-2 inline-block rounded-md px-2.5 py-0.5 text-[11px] font-medium ${badge}`}>{categoryLabel}</span>
 
       <p className="mt-2.5 text-[17px] font-bold text-white">
@@ -484,6 +487,16 @@ function ItemModal({ initial, categories, onClose, onSave }) {
       <form onSubmit={submit} className="space-y-4">
         <Field label={t('admin.menu.fieldName')}>
           <input className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} />
+        </Field>
+
+        <Field label={t('admin.menu.fieldDescription')}>
+          <input
+            className="input"
+            maxLength={120}
+            value={form.description || ''}
+            onChange={(e) => set('description', e.target.value)}
+            placeholder={t('admin.menu.descriptionPlaceholder')}
+          />
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

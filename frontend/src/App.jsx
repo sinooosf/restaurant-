@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { CartProvider } from './context/CartContext'
 import { OrderProvider } from './context/OrderContext'
+import { WaiterProvider } from './context/WaiterContext'
 import { CATEGORIES, MENU_ITEMS, loadMenuData } from './data/menu'
 import { preloadImages } from './utils/preloadImages'
 import { HOME_PATH, loadTables } from './data/tables'
@@ -80,6 +81,7 @@ function CustomerShell() {
       ) : (
         <CartProvider>
           <OrderProvider>
+            <WaiterProvider>
             <Routes>
               <Route path="/" element={<Navigate to="/table/1" replace />} />
               <Route path="/table/:tableId" element={<TablePage />} />
@@ -87,6 +89,7 @@ function CustomerShell() {
               <Route path={HOME_PATH} element={<TablePage />} />
               <Route path="*" element={<TableNotFound />} />
             </Routes>
+            </WaiterProvider>
           </OrderProvider>
         </CartProvider>
       )}

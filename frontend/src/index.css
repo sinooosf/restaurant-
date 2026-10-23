@@ -137,6 +137,15 @@ body {
   border-color: rgb(240 34 44 / 0.7);
 }
 
+/* The "Call waiter" bell gives a small shake now and then so it is easy to spot. */
+@keyframes wiggle {
+  0%, 82%, 100% { transform: rotate(0deg); }
+  86% { transform: rotate(-16deg); }
+  90% { transform: rotate(14deg); }
+  94% { transform: rotate(-10deg); }
+  98% { transform: rotate(6deg); }
+}
+
 @keyframes admin-fade-up {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }

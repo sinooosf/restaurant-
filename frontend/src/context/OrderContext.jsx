@@ -415,7 +415,7 @@ export function OrderProvider({ children }) {
   // -------------------------------------------------------------------------
 
   const placeOrder = useCallback(
-    async (tableId, lines) => {
+    async (tableId, lines, note = '') => {
       if (!lines || lines.length === 0) {
         return null
       }
@@ -432,6 +432,7 @@ export function OrderProvider({ children }) {
       const created = await submitOrder({
         tableId,
         items,
+        note,
       })
 
       clearTimers()
@@ -455,7 +456,7 @@ export function OrderProvider({ children }) {
   // -------------------------------------------------------------------------
 
   const addToOrder = useCallback(
-    async (lines) => {
+    async (lines, note = '') => {
       if (!order || !lines || lines.length === 0) {
         return null
       }
@@ -466,7 +467,7 @@ export function OrderProvider({ children }) {
       }))
 
       // Throws if the kitchen already moved past "Preparing".
-      const updated = await addItemsToOrder(order.id, items)
+      const updated = await addItemsToOrder(order.id, items, note)
 
       cart.clearCart()
       setOrder(updated)

@@ -36,6 +36,19 @@ export function normalizeTableId(value) {
   return null
 }
 
+// A free-text note (kitchen note, dish description). Empty/missing is fine.
+// Returns { value } (trimmed) or { error }.
+export function cleanNote(value, max) {
+  if (value === undefined || value === null) return { value: '' }
+  if (typeof value !== 'string' || value.includes('\u0000')) return { error: 'The note must be text.' }
+  const trimmed = value.trim()
+  if (trimmed.length > max) return { error: `The note can be at most ${max} characters.` }
+  return { value: trimmed }
+}
+
+export const MAX_ORDER_NOTE = 300
+export const MAX_DISH_NOTE = 120
+
 // Turns the `items` array of an order into clean lines, or an error message.
 //   [{ id, quantity }]  ->  { lines } | { error }
 export function parseOrderLines(items) {
@@ -70,5 +83,6 @@ export function checkDish(body, { partial = false } = {}) {
   if (has('discountPercent') && !isInt(b.discountPercent, 0, 90)) return 'The discount must be a whole number from 0 to 90.'
   if (has('available') && typeof b.available !== 'boolean') return '"available" must be true or false.'
   if (has('isBest') && typeof b.isBest !== 'boolean') return '"isBest" must be true or false.'
+  if (has('description') && cleanNote(b.description, MAX_DISH_NOTE).error) return `The dish note must be text of at most ${MAX_DISH_NOTE} characters.`
   return null
 }

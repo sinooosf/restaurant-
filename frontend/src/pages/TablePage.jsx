@@ -18,6 +18,7 @@ import SearchResultsOverlay from '../components/menu/SearchResultsOverlay'
 import CartBar from '../components/cart/CartBar'
 import OrderTracking from '../components/order/OrderTracking'
 import OrderStatusChip from '../components/order/OrderStatusChip'
+import CallWaiterButton from '../components/waiter/CallWaiterButton'
 import ChatbotPanel, { ChatbotBoundary } from '../components/chatbot/ChatbotPanel'
 import OrderHistoryPanel from '../components/history/OrderHistoryPanel'
 import TableNotFound from './TableNotFound'
@@ -55,6 +56,10 @@ export default function TablePage() {
   const [confirmOrderOpen, setConfirmOrderOpen] = useState(false)
 
   const [placing, setPlacing] = useState(false)
+
+  // The customer's optional note for the kitchen ("no onions"), typed in the
+  // confirmation box and sent with the order.
+  const [orderNote, setOrderNote] = useState('')
 
   // Height of the cart bar at the bottom — the menu keeps that much room
   // below its last row (see MenuSection).
@@ -186,12 +191,13 @@ export default function TablePage() {
     try {
       if (order.order) {
         // Already ordering: add these dishes to the SAME order.
-        await order.addToOrder(cart.lines)
+        await order.addToOrder(cart.lines, orderNote)
       } else {
-        await order.placeOrder(tableId, cart.lines)
+        await order.placeOrder(tableId, cart.lines, orderNote)
       }
 
       // Both of them open the tracking screen automatically.
+      setOrderNote('')
       setConfirmOrderOpen(false)
       setCartOpen(false)
     } catch (error) {
@@ -264,6 +270,12 @@ export default function TablePage() {
       {/* "Order in progress" button, for when the tracking screen is hidden */}
       <OrderStatusChip />
 
+      {/* CALL WAITER — always visible, just above the cart bar. When the
+          "order in progress" button is showing it sits one step higher. */}
+      <CallWaiterButton
+        style={{ bottom: cartBarHeight + 12 + (order.order && !order.trackingVisible ? 48 : 0) }}
+      />
+
       {/* ORDER TRACKING */}
       <OrderTracking />
 
@@ -334,7 +346,7 @@ export default function TablePage() {
                 </span>
               </div>
 
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 max-h-28 space-y-1 overflow-y-auto">
                 {cart.lines.map((line) => (
                   <div
                     key={line.item.id}
@@ -351,6 +363,20 @@ export default function TablePage() {
                 ))}
               </div>
             </div>
+
+            {/* Note for the kitchen */}
+            <label className="mt-3 block">
+              <span className="text-xs font-semibold text-cream/60">{t('note.label')}</span>
+              <textarea
+                value={orderNote}
+                onChange={(event) => setOrderNote(event.target.value.slice(0, 300))}
+                maxLength={300}
+                rows={2}
+                disabled={placing}
+                placeholder={t('note.placeholder')}
+                className="mt-1 w-full resize-none rounded-xl border border-line bg-panel-light px-3 py-2 text-sm text-cream placeholder:text-cream/30 focus:border-maroon-bright focus:outline-none"
+              />
+            </label>
 
             {orderError && (
               <p className="mt-3 text-sm leading-relaxed text-red-300">

@@ -3,7 +3,7 @@ import { pool } from '../db.js'
 import { requireAdmin, checkAdminPassword, sendAuthError } from '../middleware/auth.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
-import { checkDish, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
+import { MAX_DISH_NOTE, checkDish, cleanNote, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
 import {
   serializeCategory,
   serializeMenuItem,
@@ -175,7 +175,7 @@ router.get('/menu-items', async (req, res, next) => {
 
 router.post('/menu-items', async (req, res, next) => {
   try {
-    const { id, categoryId, name, price, image, available, discountPercent, isBest } = req.body || {}
+    const { id, categoryId, name, price, image, available, discountPercent, isBest, description } = req.body || {}
     if (id !== undefined && id !== null && !isText(id, 80)) {
       return res.status(400).json({ error: 'The id must be text (or leave it out).' })
     }
@@ -188,9 +188,9 @@ router.post('/menu-items', async (req, res, next) => {
     const newId = id || `${slug}-${Math.random().toString(16).slice(2, 6)}`
 
     const result = await pool.query(
-      `INSERT INTO menu_items (id, category_id, name, price, image, available, discount_percent, is_best)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [newId, categoryId, name, price, image, available ?? true, discountPercent ?? 0, isBest ?? false],
+      `INSERT INTO menu_items (id, category_id, name, price, image, available, discount_percent, is_best, description)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [newId, categoryId, name, price, image, available ?? true, discountPercent ?? 0, isBest ?? false, cleanNote(description, MAX_DISH_NOTE).value],
     )
     res.status(201).json(serializeMenuItem(result.rows[0]))
   } catch (err) {
@@ -202,7 +202,7 @@ router.post('/menu-items', async (req, res, next) => {
 
 router.put('/menu-items/:id', async (req, res, next) => {
   try {
-    const { categoryId, name, price, image, available, discountPercent, isBest } = req.body || {}
+    const { categoryId, name, price, image, available, discountPercent, isBest, description } = req.body || {}
     const problem = checkDish(req.body, { partial: true })
     if (problem) return res.status(400).json({ error: problem })
     const before = await pool.query('SELECT image FROM menu_items WHERE id = $1', [req.params.id])
@@ -214,10 +214,12 @@ router.put('/menu-items/:id', async (req, res, next) => {
          image = COALESCE($4, image),
          available = COALESCE($5, available),
          discount_percent = COALESCE($6, discount_percent),
-         is_best = COALESCE($7, is_best)
+         is_best = COALESCE($7, is_best),
+         description = COALESCE($9, description)
        WHERE id = $8
        RETURNING *`,
-      [categoryId, name, price, image, available, discountPercent, isBest, req.params.id],
+      [categoryId, name, price, image, available, discountPercent, isBest, req.params.id,
+        description === undefined || description === null ? null : cleanNote(description, MAX_DISH_NOTE).value],
     )
     if (result.rows.length === 0) return res.status(404).json({ error: 'Menu item not found.' })
     // The old uploaded picture (if any) is no longer used: free the space.
@@ -501,6 +503,47 @@ router.get('/orders', async (req, res, next) => {
   }
 })
 
+// ---------------------------------------------------------------------
+// "Call waiter" — customers tap a button, the dashboard rings until a staff
+// member marks the call as answered.
+// ---------------------------------------------------------------------
+export async function openWaiterCalls() {
+  const result = await pool.query(
+    `SELECT w.id, w.table_id, w.created_at, t.label
+       FROM waiter_calls w
+       LEFT JOIN restaurant_tables t ON t.id = w.table_id
+      WHERE w.resolved_at IS NULL AND w.created_at > now() - interval '3 hours'
+      ORDER BY w.created_at ASC`,
+  )
+  return result.rows.map((r) => ({
+    id: r.id,
+    tableId: r.table_id,
+    label: r.label || `Table ${r.table_id}`,
+    createdAt: r.created_at,
+  }))
+}
+
+router.get('/waiter-calls', async (req, res, next) => {
+  try {
+    res.json(await openWaiterCalls())
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.patch('/waiter-calls/:id/resolve', numericId, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      'UPDATE waiter_calls SET resolved_at = now() WHERE id = $1 AND resolved_at IS NULL RETURNING id',
+      [req.params.id],
+    )
+    // Already answered (e.g. by another staff member) is fine: same end result.
+    res.json({ ok: true, alreadyAnswered: result.rows.length === 0 })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Tiny payload polled by the dashboard shell: the red badge next to
 // "Orders" in the sidebar and the notification bell.
 router.get('/summary', async (req, res, next) => {
@@ -520,6 +563,7 @@ router.get('/summary', async (req, res, next) => {
     res.json({
       pendingCount: count.rows[0].n,
       pending: await attachItems(pending.rows),
+      waiterCalls: await openWaiterCalls(),
     })
   } catch (err) {
     next(err)

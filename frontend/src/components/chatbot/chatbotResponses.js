@@ -47,6 +47,19 @@ function normalize(text) {
 // Each rule: words (any language) -> the answer. The order matters: the
 // first rule that matches wins (same order as the original English bot).
 const RULES = [
+  // "Where is the waiter?" -> tell them about the button.
+  { id: 'waiter', words: ['waiter', 'waitress', 'serveur', 'serveuse', 'garcon', 'نادل', 'جرسون', 'ويتر', 'نادلة'] },
+  // The manager's / restaurant's phone, e-mail, address... (placeholder data
+  // lives in i18n/locales/chatbot.js — replace it with the real details).
+  {
+    id: 'contact',
+    words: [
+      'contact', 'manager', 'gerant', 'responsable', 'directeur', 'phone', 'telephone', 'whatsapp',
+      'email', 'e-mail', 'address', 'adresse', 'info', 'joindre', 'appeler', 'your number', 'votre numero', 'ton numero',
+      'رقم', 'هاتف', 'تلفون', 'مدير', 'مسؤول', 'اتصال', 'اتصل', 'تواصل', 'عنوان', 'معلومات', 'واتساب', 'بريد', 'ايميل',
+    ],
+    pattern: /\b(num|nbr|numero)\b/,
+  },
   { id: 'name', words: ['name', 'appelle', 'ton nom', 'votre nom', 'qui es-tu', 'اسم', 'من انت'] },
   { id: 'help', words: ['help', 'aide', 'aider', 'مساعد', 'ساعد'] },
   { id: 'how', words: ['how are you', 'ca va', 'comment vas', 'comment allez', 'كيف حالك', 'كيفك', 'كيف الحال'] },
@@ -67,9 +80,13 @@ export function getBotResponse(rawText, lang = 'en') {
   const text = normalize(rawText)
   const say = (key, params) => translate(lang, key, params)
 
-  const rule = RULES.find((candidate) => candidate.words.some((word) => text.includes(word)))
+  const rule = RULES.find(
+    (candidate) => candidate.words.some((word) => text.includes(word)) || candidate.pattern?.test(text)
+  )
 
   switch (rule?.id) {
+    case 'waiter': return { text: say('chat.r.waiter') }
+    case 'contact': return { text: say('chat.r.contact') }
     case 'name': return { text: say('chat.r.name') }
     case 'help': return { text: say('chat.r.help') }
     case 'how': return { text: say('chat.r.how') }

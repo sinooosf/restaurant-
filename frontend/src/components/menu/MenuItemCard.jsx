@@ -42,6 +42,10 @@ export default function MenuItemCard({ item }) {
       <div className="flex flex-1 flex-col gap-1.5 p-2.5">
         <p className="truncate text-sm font-semibold">{name}</p>
 
+        {item.description && (
+          <p className="line-clamp-2 text-[11px] leading-snug text-ink/60">{item.description}</p>
+        )}
+
         {hasDiscount && (
           <p className="text-xs text-ink/40 line-through">{formatMoney(item.price)}</p>
         )}

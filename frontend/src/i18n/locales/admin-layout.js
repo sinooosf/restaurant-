@@ -7,6 +7,10 @@ export default {
     'admin.layout.nav.tables': 'Tables',
     'admin.layout.nav.chatbot': 'Chatbot',
     'admin.layout.logout': 'Logout',
+    'admin.layout.waiter.title': '{table} is calling a waiter',
+    'admin.layout.waiter.now': 'just now',
+    'admin.layout.waiter.ago': '{n} min ago',
+    'admin.layout.waiter.answered': 'Answered',
   },
   fr: {
     'admin.layout.nav.overview': "Vue d'ensemble",
@@ -15,6 +19,10 @@ export default {
     'admin.layout.nav.tables': 'Tables',
     'admin.layout.nav.chatbot': 'Chatbot',
     'admin.layout.logout': 'Déconnexion',
+    'admin.layout.waiter.title': '{table} appelle un serveur',
+    'admin.layout.waiter.now': "à l'instant",
+    'admin.layout.waiter.ago': 'il y a {n} min',
+    'admin.layout.waiter.answered': 'Traité',
   },
   ar: {
     'admin.layout.nav.overview': 'نظرة عامة',
@@ -23,5 +31,9 @@ export default {
     'admin.layout.nav.tables': 'الطاولات',
     'admin.layout.nav.chatbot': 'روبوت المحادثة',
     'admin.layout.logout': 'تسجيل الخروج',
+    'admin.layout.waiter.title': '{table} تنادي النادل',
+    'admin.layout.waiter.now': 'الآن',
+    'admin.layout.waiter.ago': 'منذ {n} د',
+    'admin.layout.waiter.answered': 'تمت الاستجابة',
   },
 }

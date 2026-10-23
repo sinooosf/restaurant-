@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Check, X } from 'lucide-react'
 import { useOrder } from '../../context/OrderContext'
 import { useLanguage } from '../../i18n/LanguageContext'
+import CallWaiterButton from '../waiter/CallWaiterButton'
 
 const STAGE_KEYS = {
   preparing: 'order.stage.preparing',
@@ -206,6 +207,20 @@ function TrackingSheet({
             <span>{formatMoney(order.total)}</span>
           </div>
         </div>
+
+        {order.note && (
+          <p className="mt-3 rounded-xl bg-panel-light px-3 py-2 text-xs leading-relaxed text-cream/70">
+            <span className="font-semibold text-cream/85">{t('note.yours')}: </span>
+            <bdi className="whitespace-pre-line">{order.note}</bdi>
+          </p>
+        )}
+
+        {/* Waiting for the food? The waiter can be called from here too. */}
+        {!isFinished && (
+          <div className="mt-4">
+            <CallWaiterButton variant="inline" />
+          </div>
+        )}
 
         {/* ------------------------------------------------------------- */}
         {/* ACTIONS */}
