@@ -125,19 +125,39 @@ router.post('/categories', async (req, res, next) => {
   }
 })
 
+// A category that still has dishes is only deleted when the dashboard asks
+// for it explicitly with ?withDishes=true — the dishes are removed with it.
+// Past orders are not affected (order lines keep their own name and price).
 router.delete('/categories/:id', async (req, res, next) => {
+  const withDishes = req.query.withDishes === 'true'
+  const client = await pool.connect()
   try {
-    const used = await pool.query('SELECT COUNT(*)::int AS n FROM menu_items WHERE category_id = $1', [req.params.id])
-    if (used.rows[0].n > 0) {
-      return res.status(409).json({ error: 'Move or delete the dishes in this category first.' })
+    await client.query('BEGIN')
+
+    const dishes = await client.query('SELECT image FROM menu_items WHERE category_id = $1', [req.params.id])
+    if (dishes.rows.length > 0 && !withDishes) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(409).json({ error: 'This category still has dishes. Confirm to delete it together with its dishes.' })
     }
-    const result = await pool.query('DELETE FROM categories WHERE id = $1 RETURNING id, image', [req.params.id])
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Category not found.' })
-    // Free the space of the category's uploaded picture (if it had one).
-    await dropUnusedUpload(result.rows[0].image).catch(() => {})
-    res.json({ ok: true })
+
+    // The menu_items rows go with the category (ON DELETE CASCADE).
+    const result = await client.query('DELETE FROM categories WHERE id = $1 RETURNING id, image', [req.params.id])
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(404).json({ error: 'Category not found.' })
+    }
+    await client.query('COMMIT')
+
+    // Free the space of the uploaded pictures (category + its dishes) now unused.
+    for (const image of [result.rows[0].image, ...dishes.rows.map((d) => d.image)]) {
+      await dropUnusedUpload(image).catch(() => {})
+    }
+    res.json({ ok: true, removedDishes: dishes.rows.length })
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
     next(err)
+  } finally {
+    client.release()
   }
 })
 

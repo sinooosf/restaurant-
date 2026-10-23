@@ -180,8 +180,9 @@ export async function adminCreateCategory(password, category) {
   return withImage(await request('/admin/categories', { method: 'POST', body: category, password }))
 }
 
-export function adminDeleteCategory(password, id) {
-  return request(`/admin/categories/${encodeURIComponent(id)}`, { method: 'DELETE', password })
+export function adminDeleteCategory(password, id, { withDishes = false } = {}) {
+  const query = withDishes ? '?withDishes=true' : ''
+  return request(`/admin/categories/${encodeURIComponent(id)}${query}`, { method: 'DELETE', password })
 }
 
 export function adminDeleteTable(password, id) {

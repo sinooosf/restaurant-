@@ -271,6 +271,26 @@ describe('admin: menu and categories', () => {
     assert.equal((await api('/admin/categories/desserts', { method: 'DELETE', admin: true })).status, 200)
     assert.equal((await api('/admin/categories/desserts', { method: 'DELETE', admin: true })).status, 404)
   })
+
+  it('categories: with ?withDishes=true a non-empty category is deleted together with its dishes', async () => {
+    assert.equal((await api('/admin/categories', { method: 'POST', admin: true, body: { name: 'Specials' } })).status, 201)
+    const dish = await api('/admin/menu-items', {
+      method: 'POST', admin: true,
+      body: { categoryId: 'specials', name: 'Special Dish', price: 50, image: '/logo.png' },
+    })
+    assert.equal(dish.status, 201)
+
+    // Without the flag it is still protected.
+    assert.equal((await api('/admin/categories/specials', { method: 'DELETE', admin: true })).status, 409)
+    // With the flag the category and its dish are both gone.
+    const done = await api('/admin/categories/specials?withDishes=true', { method: 'DELETE', admin: true })
+    assert.equal(done.status, 200)
+    assert.equal(done.body.removedDishes, 1)
+
+    const items = await api('/admin/menu-items', { admin: true })
+    assert.ok(!items.body.some((i) => i.id === dish.body.id))
+    assert.equal((await api('/admin/categories/specials?withDishes=true', { method: 'DELETE', admin: true })).status, 404)
+  })
 })
 
 describe('admin: tables', () => {

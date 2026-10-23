@@ -194,10 +194,16 @@ export default function AdminMenu() {
   }
 
   async function handleDeleteCategory(category) {
-    if (!window.confirm(t('admin.menu.confirmDeleteCategory', { name: categoryName(category) }))) return
+    const count = countIn(category.id)
+    const message =
+      count > 0
+        ? t('admin.menu.confirmDeleteCategoryWithDishes', { name: categoryName(category), count })
+        : t('admin.menu.confirmDeleteCategory', { name: categoryName(category) })
+    if (!window.confirm(message)) return
     try {
-      await adminDeleteCategory(password, category.id)
+      await adminDeleteCategory(password, category.id, { withDishes: count > 0 })
       setCategories((prev) => prev.filter((c) => c.id !== category.id))
+      setItems((prev) => (prev || []).filter((i) => i.categoryId !== category.id))
       if (activeCategory === category.id) setActiveCategory('all')
     } catch (err) {
       setError(err.message)
@@ -322,11 +328,9 @@ export default function AdminMenu() {
                           <span className="block text-xs text-white/45">{t('admin.menu.itemCount', { count: countIn(c.id) })}</span>
                         </span>
                       </button>
-                      {countIn(c.id) === 0 && (
-                        <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })} className="p-1 text-white/50 transition hover:text-red-400 md:text-white/30 md:opacity-0 md:group-hover:opacity-100">
-                          <Trash2 size={15} />
-                        </button>
-                      )}
+                      <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })} className="p-1 text-white/50 transition hover:text-red-400 md:text-white/30 md:opacity-0 md:focus:opacity-100 md:group-hover:opacity-100">
+                        <Trash2 size={15} />
+                      </button>
                       <ChevronRight size={16} className="text-white/50 rtl:-scale-x-100" />
                     </li>
                   ))}
