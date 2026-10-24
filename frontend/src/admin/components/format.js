@@ -61,6 +61,27 @@ export function orderNumber(order) {
   return order?.number ?? order?.id
 }
 
+// Report days are plain "YYYY-MM-DD" texts. They are shown at noon UTC so the
+// computer's own time zone can never move them to the neighbouring day.
+const dayDate = (day) => new Date(`${day}T12:00:00Z`)
+
+// "2026-10-17" -> "Oct 17" / "17 oct." / "17 أكتوبر"
+export function dayLabel(day, lang = 'en') {
+  return dayDate(day).toLocaleDateString(localeOf(lang), { day: 'numeric', month: 'short', timeZone: 'UTC' })
+}
+
+// "2026-10-17" -> "Sat, Oct 17, 2026" (tooltips)
+export function dayLabelLong(day, lang = 'en') {
+  return dayDate(day).toLocaleDateString(localeOf(lang), {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
+// "Oct 17 – Oct 23" (just "Oct 17" for a single day)
+export function dayRange(from, to, lang = 'en') {
+  return from === to ? dayLabel(from, lang) : `${dayLabel(from, lang)} – ${dayLabel(to, lang)}`
+}
+
 // +12% / -4% / null when there is nothing to compare with.
 export function percentChange(current, previous) {
   if (!previous) return null

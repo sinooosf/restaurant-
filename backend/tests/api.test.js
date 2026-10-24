@@ -187,7 +187,7 @@ describe('admin protection', () => {
     ['POST', '/admin/menu-items'], ['PUT', '/admin/menu-items/x'], ['DELETE', '/admin/menu-items/x'],
     ['POST', '/admin/categories'], ['DELETE', '/admin/categories/x'], ['PATCH', '/admin/orders/1/status'],
     ['PATCH', '/admin/orders/1/move'], ['POST', '/admin/orders/merge'], ['POST', '/admin/chatbot-faqs'],
-    ['GET', '/admin/earnings/today'], ['GET', '/admin/waiter-calls'], ['PATCH', '/admin/waiter-calls/1/resolve'],
+    ['GET', '/admin/earnings/today'], ['GET', '/admin/reports'], ['GET', '/admin/waiter-calls'], ['PATCH', '/admin/waiter-calls/1/resolve'],
   ]
 
   it('refuses every admin route without / with a wrong password', async () => {
@@ -575,6 +575,81 @@ describe('tables that are being cleaned or out of service', () => {
 
   it('the To Home link is never "unavailable"', async () => {
     assert.equal((await api('/tables/home')).body.unavailable, null)
+  })
+})
+
+describe('admin: reports by date', () => {
+  const report = (query = '') => api(`/admin/reports${query}`, { admin: true })
+
+  it('last 7 days: seven daily points, totals match the orders, best sellers listed', async () => {
+    const r = await report('?range=week')
+    assert.equal(r.status, 200)
+    assert.equal(r.body.granularity, 'day')
+    assert.equal(r.body.series.length, 7)
+    assert.equal(r.body.series.at(-1).key, r.body.today)
+    assert.equal(r.body.to, r.body.today)
+    // the chart and the totals tell the same story
+    assert.equal(r.body.series.reduce((n, p) => n + p.orders, 0), r.body.current.orders)
+    assert.equal(r.body.series.reduce((n, p) => n + p.revenue, 0), r.body.current.revenue)
+    assert.ok(r.body.current.orders > 0 && r.body.current.revenue > 0)
+    assert.ok(r.body.bestSellers.length > 0 && r.body.bestSellers.length <= 10)
+    // best first
+    const q = r.body.bestSellers.map((b) => b.quantity)
+    assert.deepEqual(q, [...q].sort((a, b) => b - a))
+  })
+
+  it('today is hourly (24 points); yesterday, month, lastmonth, last30 answer', async () => {
+    const today = await report('?range=today')
+    assert.equal(today.body.granularity, 'hour')
+    assert.equal(today.body.series.length, 24)
+    assert.equal(today.body.from, today.body.to)
+
+    for (const range of ['yesterday', 'month', 'lastmonth', 'last30']) {
+      const r = await report(`?range=${range}`)
+      assert.equal(r.status, 200, range)
+      assert.ok(r.body.from <= r.body.to, range)
+    }
+    assert.equal((await report('?range=last30')).body.series.length, 30)
+    const month = await report('?range=month')
+    assert.equal(month.body.from.slice(8), '01')
+    assert.equal(month.body.to, month.body.today)
+  })
+
+  it('cancelled orders are not sales, but are counted as cancelled', async () => {
+    const before = (await report('?range=today')).body
+    const order = await place('2', [line(0, 3)])
+    assert.equal(order.status, 201)
+    const during = (await report('?range=today')).body
+    assert.equal(during.current.orders, before.current.orders + 1)
+    assert.equal(during.current.revenue, before.current.revenue + order.body.total)
+
+    await api(`/admin/orders/${order.body.id}/status`, { method: 'PATCH', admin: true, body: { status: 'cancelled' } })
+    const after = (await report('?range=today')).body
+    assert.equal(after.current.orders, before.current.orders)
+    assert.equal(after.current.revenue, before.current.revenue)
+    assert.equal(after.current.cancelled, before.current.cancelled + 1)
+  })
+
+  it('custom dates work, the future is cut off, and bad input is a 400 (never a 500)', async () => {
+    const { today } = (await report('?range=today')).body
+    const ok = await report(`?range=custom&from=${today}&to=${today}`)
+    assert.equal(ok.status, 200)
+    assert.equal(ok.body.granularity, 'hour')
+
+    const future = await report(`?range=custom&from=2020-01-01&to=2999-12-31`)
+    assert.equal(future.status, 400) // longer than a year
+    const cut = await report(`?range=custom&from=${today}&to=2999-12-31`)
+    assert.equal(cut.body.to, today)
+
+    for (const q of [
+      '?range=nope', '?range=custom', '?range=custom&from=2026-10-01', '?range=custom&from=bad&to=worse',
+      '?range=custom&from=2026-02-31&to=2026-03-01', '?range=custom&from=2026-10-10&to=2026-10-01',
+      '?range=custom&from=2020-01-01&to=2026-01-01', '?range=week&range=today',
+      '?range=custom&from[]=x&to=2026-10-01',
+    ]) {
+      const r = await report(q)
+      assert.equal(r.status, 400, q)
+    }
   })
 })
 

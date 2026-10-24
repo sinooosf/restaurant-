@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import {
   Armchair,
   BellRing,
+  ChartColumn,
   ClipboardList,
   House,
   LogOut,
@@ -17,6 +18,7 @@ import { orderTableLabel } from './components/format'
 const NAV_ITEMS = [
   { to: '/admin', labelKey: 'admin.layout.nav.overview', icon: House, end: true },
   { to: '/admin/orders', labelKey: 'admin.layout.nav.orders', icon: ClipboardList, badge: true },
+  { to: '/admin/reports', labelKey: 'admin.layout.nav.reports', icon: ChartColumn },
   { to: '/admin/menu', labelKey: 'admin.layout.nav.menu', icon: Utensils },
   { to: '/admin/tables', labelKey: 'admin.layout.nav.tables', icon: Armchair },
   { to: '/admin/chatbot', labelKey: 'admin.layout.nav.chatbot', icon: MessageSquareMore },

@@ -3,6 +3,7 @@ import { pool } from '../db.js'
 import { requireAdmin, checkAdminPassword, sendAuthError } from '../middleware/auth.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
+import { daysBetween, resolveRange } from '../reportRange.js'
 import { MAX_DISH_NOTE, checkDish, cleanNote, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
 import {
   serializeCategory,
@@ -832,6 +833,114 @@ router.get('/overview', async (req, res, next) => {
         cancelled: current.cancelled,
       },
       recent: await attachItems(recent.rows),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// ---------------------------------------------------------------------
+// Reports — sales over any range of days: totals (compared with the period
+// before), a chart series (one bar per day, or per hour for a single day),
+// and the best-selling dishes.
+//
+//   GET /api/admin/reports?range=today|yesterday|week|last30|month|lastmonth
+//   GET /api/admin/reports?range=custom&from=2026-10-01&to=2026-10-15
+//
+// Cancelled orders never count as sales.
+// ---------------------------------------------------------------------
+// created_at falls on one of the days $1..$2 (inclusive) in the restaurant's
+// time zone $3.
+const inDays = (column) =>
+  `${column} >= ($1::date::timestamp AT TIME ZONE $3) AND ${column} < (($2::date + 1)::timestamp AT TIME ZONE $3)`
+
+router.get('/reports', async (req, res, next) => {
+  try {
+    const { range, from, to } = req.query
+    if ([range, from, to].some((v) => v !== undefined && typeof v !== 'string')) {
+      return res.status(400).json({ error: 'Invalid report range.' })
+    }
+
+    const todayRow = await pool.query(`SELECT to_char(now() AT TIME ZONE $1, 'YYYY-MM-DD') AS d`, [TZ])
+    const today = todayRow.rows[0].d
+
+    const span = resolveRange({ range: range || 'week', from, to }, today)
+    if (span.error) return res.status(400).json({ error: span.error })
+
+    async function totals(f, t) {
+      const r = await pool.query(
+        `SELECT COUNT(*) FILTER (WHERE status <> 'cancelled')::int                      AS orders,
+                COALESCE(SUM(total) FILTER (WHERE status <> 'cancelled'), 0)::int       AS revenue,
+                COUNT(*) FILTER (WHERE status = 'cancelled')::int                       AS cancelled
+           FROM orders WHERE ${inDays('created_at')}`,
+        [f, t, TZ],
+      )
+      const row = r.rows[0]
+      return { ...row, avg: row.orders ? Math.round(row.revenue / row.orders) : 0 }
+    }
+
+    const singleDay = span.from === span.to
+
+    async function series() {
+      if (singleDay) {
+        const r = await pool.query(
+          `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE $3)::int AS key,
+                  COUNT(*)::int AS orders, COALESCE(SUM(total), 0)::int AS revenue
+             FROM orders WHERE ${inDays('created_at')} AND status <> 'cancelled'
+            GROUP BY key`,
+          [span.from, span.to, TZ],
+        )
+        const byHour = new Map(r.rows.map((row) => [row.key, row]))
+        return Array.from({ length: 24 }, (_, hour) => ({
+          key: hour, orders: byHour.get(hour)?.orders || 0, revenue: byHour.get(hour)?.revenue || 0,
+        }))
+      }
+      const r = await pool.query(
+        `SELECT to_char(created_at AT TIME ZONE $3, 'YYYY-MM-DD') AS key,
+                COUNT(*)::int AS orders, COALESCE(SUM(total), 0)::int AS revenue
+           FROM orders WHERE ${inDays('created_at')} AND status <> 'cancelled'
+          GROUP BY key`,
+        [span.from, span.to, TZ],
+      )
+      const byDay = new Map(r.rows.map((row) => [row.key, row]))
+      return daysBetween(span.from, span.to).map((day) => ({
+        key: day, orders: byDay.get(day)?.orders || 0, revenue: byDay.get(day)?.revenue || 0,
+      }))
+    }
+
+    const best = await pool.query(
+      `SELECT oi.item_id AS id,
+              MAX(oi.name) AS name,
+              SUM(oi.quantity)::int AS quantity,
+              COALESCE(SUM(oi.quantity * oi.unit_price), 0)::int AS revenue,
+              COUNT(DISTINCT o.id)::int AS orders
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+        WHERE ${inDays('o.created_at')} AND o.status <> 'cancelled'
+        GROUP BY oi.item_id
+        ORDER BY quantity DESC, revenue DESC, name ASC
+        LIMIT 10`,
+      [span.from, span.to, TZ],
+    )
+
+    const [current, previous, points] = await Promise.all([
+      totals(span.from, span.to),
+      totals(span.prevFrom, span.prevTo),
+      series(),
+    ])
+
+    res.json({
+      range: range || 'week',
+      today,
+      from: span.from,
+      to: span.to,
+      previousFrom: span.prevFrom,
+      previousTo: span.prevTo,
+      granularity: singleDay ? 'hour' : 'day',
+      current,
+      previous,
+      series: points,
+      bestSellers: best.rows,
     })
   } catch (err) {
     next(err)

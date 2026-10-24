@@ -239,6 +239,17 @@ export function adminFetchOverview(password, range = 'today') {
   return request(`/admin/overview?range=${encodeURIComponent(range)}`, { password })
 }
 
+// Sales report. `range` is today | yesterday | week | last30 | month |
+// lastmonth | custom (custom also needs `from` and `to`, as YYYY-MM-DD).
+export function adminFetchReport(password, { range = 'week', from, to } = {}) {
+  const query = new URLSearchParams({ range })
+  if (range === 'custom') {
+    query.set('from', from || '')
+    query.set('to', to || '')
+  }
+  return request(`/admin/reports?${query}`, { password })
+}
+
 export function adminMoveOrder(password, id, tableId) {
   return request(`/admin/orders/${id}/move`, { method: 'PATCH', body: { tableId }, password })
 }

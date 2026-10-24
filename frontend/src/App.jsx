@@ -20,6 +20,7 @@ import AdminMenu from './admin/pages/AdminMenu'
 import AdminTables from './admin/pages/AdminTables'
 import AdminChatbot from './admin/pages/AdminChatbot'
 import AdminOrders from './admin/pages/AdminOrders'
+import AdminReports from './admin/pages/AdminReports'
 
 export default function App() {
   return (
@@ -108,6 +109,7 @@ function AdminApp() {
         <Route element={<AdminLayout />}>
           <Route index element={<AdminOverview />} />
           <Route path="orders" element={<AdminOrders />} />
+          <Route path="reports" element={<AdminReports />} />
           <Route path="menu" element={<AdminMenu />} />
           <Route path="tables" element={<AdminTables />} />
           <Route path="chatbot" element={<AdminChatbot />} />
