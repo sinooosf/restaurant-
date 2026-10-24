@@ -52,6 +52,11 @@ function Shell() {
     setNavOpen(false)
   }, [pathname, setNavOpen])
 
+  // Every page opens at the top (the scroll position is not carried over).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+
   return (
     // "admin-theme" gives the whole dashboard its own colors (see index.css).
     <div className="admin-theme relative min-h-dvh bg-[#09090b] text-white">
