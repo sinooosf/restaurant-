@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Calendar, ChevronDown, Globe, Menu as MenuIcon } from 'lucide-react'
+import { Bell, Calendar, ChevronDown, Globe } from 'lucide-react'
 import { useAdminShell } from '../AdminShellContext'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { STATUS_META, clockTime, itemsSummary, orderNumber, orderTableLabel } from './format'
@@ -238,7 +238,6 @@ export function Dropdown({ value, options, onChange, icon, className = '', align
 
 export function PageTop({ icon, title, subtitle, range, onRange, showBell = true, children }) {
   const clock = useClock()
-  const { setNavOpen } = useAdminShell()
   const { t, lang, setLang, languages } = useLanguage()
 
   const rangeOptions = [
@@ -250,15 +249,6 @@ export function PageTop({ icon, title, subtitle, range, onRange, showBell = true
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="flex min-w-0 items-center gap-3.5">
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          aria-label={t('admin.ui.openMenu')}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-white/70 lg:hidden"
-        >
-          <MenuIcon size={19} />
-        </button>
-
         {icon && <span className="hidden text-white sm:block">{icon}</span>}
 
         <div className="min-w-0">

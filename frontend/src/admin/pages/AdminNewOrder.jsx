@@ -135,7 +135,7 @@ export default function AdminNewOrder() {
   }
 
   return (
-    <div className="space-y-5 pb-24 lg:pb-0">
+    <div className="space-y-5 pb-20 lg:pb-0">
       <PageTop icon={<SquarePlus size={26} />} title={t('admin.newOrder.title')} subtitle={t('admin.newOrder.subtitle')} />
 
       <ErrorBanner message={error} onClose={() => setError('')} />
@@ -277,7 +277,7 @@ export default function AdminNewOrder() {
       </div>
 
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#0b0b0d]/95 p-3 backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t border-white/10 bg-[#0b0b0d]/95 p-3 backdrop-blur lg:hidden">
           <PrimaryButton className="w-full justify-between" onClick={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth' })}>
             <span>{t('admin.newOrder.review')} · {t('admin.newOrder.itemsCount', { count })}</span>
             <span>{formatMoney(total)}</span>

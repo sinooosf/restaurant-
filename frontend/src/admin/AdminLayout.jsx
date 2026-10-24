@@ -1,5 +1,5 @@
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   Armchair,
   BellRing,
@@ -8,6 +8,7 @@ import {
   House,
   SquarePlus,
   LogOut,
+  Menu as MenuIcon,
   MessageSquareMore,
   Utensils,
 } from 'lucide-react'
@@ -150,14 +151,98 @@ function Shell() {
       {/* ------------------------------------------------------------ */}
       {/* PAGE                                                          */}
       {/* ------------------------------------------------------------ */}
-      <main className="min-h-dvh px-4 pb-10 pt-6 sm:px-6 lg:ms-[232px] lg:px-7 xl:px-8">
+      <MobileTopBar />
+
+      <main className="min-h-dvh px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:ms-[232px] lg:px-7 lg:pb-10 lg:pt-6 xl:px-8">
         <WaiterAlerts />
         <Outlet />
       </main>
+
+      <MobileTabBar />
     </div>
   )
 }
 
+
+// Phones and tablets: a bar that stays at the top while you scroll, so the
+// menu button and the logo are always one tap away (no scrolling back up).
+function MobileTopBar() {
+  const { summary, setNavOpen } = useAdminShell()
+  const { t } = useLanguage()
+  const { pathname } = useLocation()
+  const current =
+    NAV_ITEMS.filter((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to))).pop() ||
+    NAV_ITEMS[0]
+
+  return (
+    <header className="sticky top-0 z-20 -mb-px flex h-14 items-center gap-3 border-b border-white/[0.07] bg-[#09090b]/95 px-4 backdrop-blur sm:px-6 lg:hidden">
+      <button
+        type="button"
+        onClick={() => setNavOpen(true)}
+        aria-label={t('admin.ui.openMenu')}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-white/80"
+      >
+        <MenuIcon size={19} />
+      </button>
+      <img src="/logo.png" alt="Meet The Chefs" className="h-9 w-auto object-contain" />
+      <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">{t(current.labelKey)}</p>
+      {summary.pendingCount > 0 && (
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#e11d28] px-1.5 text-xs font-bold text-white">
+          {summary.pendingCount > 99 ? '99+' : summary.pendingCount}
+        </span>
+      )}
+    </header>
+  )
+}
+
+// Phones and tablets: every page one tap away at the bottom of the screen.
+function MobileTabBar() {
+  const { summary } = useAdminShell()
+  const { t } = useLanguage()
+  const barRef = useRef(null)
+
+  // Keep the current page's tab visible if the row has to scroll.
+  const { pathname } = useLocation()
+  useEffect(() => {
+    barRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [pathname])
+
+  return (
+    <nav
+      ref={barRef}
+      aria-label="Dashboard"
+      className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-white/10 bg-[#0b0b0d]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {NAV_ITEMS.map(({ to, labelKey, icon: Icon, end, badge }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) =>
+            `relative flex h-16 min-w-[3.25rem] flex-1 flex-col items-center justify-center gap-1 px-1 text-[10px] font-medium transition sm:text-xs ${
+              isActive ? 'text-white' : 'text-white/55'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              {isActive && <span className="absolute inset-x-3 top-0 h-0.5 rounded-b bg-[#f0222c]" />}
+              <span className="relative">
+                <Icon size={22} strokeWidth={isActive ? 2.2 : 1.8} className={isActive ? 'text-[#f0222c]' : ''} />
+                {badge && summary.pendingCount > 0 && (
+                  <span className="absolute -end-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#e11d28] px-1 text-[9px] font-bold text-white">
+                    {summary.pendingCount > 99 ? '99+' : summary.pendingCount}
+                  </span>
+                )}
+              </span>
+              <span className="max-w-full truncate">{t(labelKey)}</span>
+            </>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
 
 // Red banners at the top of every page: "Table 3 is calling a waiter".
 // They stay until a staff member presses "Answered" (the sound rings once,
@@ -170,7 +255,7 @@ function WaiterAlerts() {
   if (calls.length === 0) return null
 
   return (
-    <div role="alert" className="sticky top-2 z-20 mb-5 space-y-2">
+    <div role="alert" className="sticky top-16 z-20 mb-5 space-y-2 lg:top-2">
       {calls.map((call) => {
         const minutes = Math.max(0, Math.floor((Date.now() - new Date(call.createdAt).getTime()) / 60000))
         return (
