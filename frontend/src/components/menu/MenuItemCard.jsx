@@ -14,7 +14,7 @@ export default function MenuItemCard({ item }) {
   const hasDiscount = item.discountPercent > 0
 
   // Tapping the card itself works like the + button: adds one, with a short
-  // "pressed in" look (inner red glow + a tiny shrink).
+  // "pressed" look (the card dips down a little, then comes back).
   const [pressed, setPressed] = useState(false)
   const timer = useRef(null)
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -30,10 +30,9 @@ export default function MenuItemCard({ item }) {
     <div
       data-testid="menu-card"
       onClick={item.available ? add : undefined}
-      style={pressed ? { boxShadow: 'inset 0 0 28px 6px rgba(217,21,31,0.65)' } : undefined}
       className={`relative flex flex-col overflow-hidden rounded-2xl bg-cream text-ink shadow-lg shadow-black/30 transition duration-150 ${
         item.available ? 'cursor-pointer select-none' : ''
-      } ${pressed ? 'scale-[0.97]' : 'scale-100'}`}
+      } ${pressed ? 'translate-y-1.5 scale-[0.98]' : 'translate-y-0 scale-100'}`}
     >
       <div className="relative aspect-square w-full">
         <FadeImage

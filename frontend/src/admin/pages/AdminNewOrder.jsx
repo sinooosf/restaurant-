@@ -194,8 +194,7 @@ export default function AdminNewOrder() {
                     key={item.id}
                     data-testid="dish-tile"
                     onClick={item.available ? () => change(item, 1) : undefined}
-                    style={flash === item.id ? { boxShadow: 'inset 0 0 24px 5px rgba(217,21,31,0.7)' } : undefined}
-                    className={`select-none overflow-hidden rounded-2xl border bg-[#0b0b0d] p-2.5 transition duration-150 ${qty ? 'border-[#d9151f]' : 'border-white/[0.07]'} ${item.available ? 'cursor-pointer' : 'opacity-50'} ${flash === item.id ? 'scale-[0.97]' : ''}`}
+                    className={`select-none overflow-hidden rounded-2xl border bg-[#0b0b0d] p-2.5 transition duration-150 ${qty ? 'border-[#d9151f]' : 'border-white/[0.07]'} ${item.available ? 'cursor-pointer' : 'opacity-50'} ${flash === item.id ? 'translate-y-1.5 scale-[0.98]' : ''}`}
                   >
                     <FadeImage src={item.image} alt="" className="h-24 w-full rounded-xl bg-white/5" />
                     <h3 className="mt-2 truncate text-sm font-semibold text-white" title={name}>{name}</h3>
