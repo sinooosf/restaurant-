@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Ban, Minus, Plus } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 import { getFinalPrice } from '../../data/menu'
@@ -12,8 +13,28 @@ export default function MenuItemCard({ item }) {
   const finalPrice = getFinalPrice(item)
   const hasDiscount = item.discountPercent > 0
 
+  // Tapping the card itself works like the + button: adds one, with a short
+  // "pressed in" look (inner red glow + a tiny shrink).
+  const [pressed, setPressed] = useState(false)
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  function add() {
+    addItem(item.id)
+    setPressed(true)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setPressed(false), 220)
+  }
+
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-2xl bg-cream text-ink shadow-lg shadow-black/30">
+    <div
+      data-testid="menu-card"
+      onClick={item.available ? add : undefined}
+      style={pressed ? { boxShadow: 'inset 0 0 28px 6px rgba(217,21,31,0.65)' } : undefined}
+      className={`relative flex flex-col overflow-hidden rounded-2xl bg-cream text-ink shadow-lg shadow-black/30 transition duration-150 ${
+        item.available ? 'cursor-pointer select-none' : ''
+      } ${pressed ? 'scale-[0.97]' : 'scale-100'}`}
+    >
       <div className="relative aspect-square w-full">
         <FadeImage
           src={item.image}
@@ -57,7 +78,7 @@ export default function MenuItemCard({ item }) {
         ) : quantity === 0 ? (
           <button
             type="button"
-            onClick={() => addItem(item.id)}
+            onClick={(e) => { e.stopPropagation(); add() }}
             aria-label={t('item.addAria', { name })}
             className="mt-auto flex items-center justify-center gap-1 rounded-full bg-maroon py-2 text-sm font-semibold text-cream transition hover:bg-maroon-bright"
           >
@@ -68,7 +89,7 @@ export default function MenuItemCard({ item }) {
           <div className="mt-auto flex items-center justify-between rounded-full bg-ink/10 px-1 py-1">
             <button
               type="button"
-              onClick={() => removeItem(item.id)}
+              onClick={(e) => { e.stopPropagation(); removeItem(item.id) }}
               aria-label={t('item.removeOne', { name })}
               className="flex h-7 w-7 items-center justify-center rounded-full bg-maroon text-cream transition hover:bg-maroon-bright"
             >
@@ -77,7 +98,7 @@ export default function MenuItemCard({ item }) {
             <span className="text-sm font-semibold">{quantity}</span>
             <button
               type="button"
-              onClick={() => addItem(item.id)}
+              onClick={(e) => { e.stopPropagation(); add() }}
               aria-label={t('item.addAnother', { name })}
               className="flex h-7 w-7 items-center justify-center rounded-full bg-maroon text-cream transition hover:bg-maroon-bright"
             >

@@ -75,8 +75,17 @@ export default function AdminNewOrder() {
   const count = orderLines.reduce((sum, line) => sum + line.quantity, 0)
   const total = orderLines.reduce((sum, line) => sum + finalPrice(line.item) * line.quantity, 0)
 
+  const [flash, setFlash] = useState(null) // id of the tile just tapped
+  const flashTimer = useRef(null)
+  useEffect(() => () => clearTimeout(flashTimer.current), [])
+
   const change = (item, delta) => {
     setSent(null)
+    if (delta > 0) {
+      setFlash(item.id)
+      clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(() => setFlash(null), 220)
+    }
     setLines((current) => {
       const next = { ...current }
       const quantity = (next[item.id] || 0) + delta
@@ -181,7 +190,13 @@ export default function AdminNewOrder() {
                 const name = itemName(item)
                 const discounted = Number(item.discountPercent) > 0
                 return (
-                  <div key={item.id} className={`overflow-hidden rounded-2xl border bg-[#0b0b0d] p-2.5 ${qty ? 'border-[#d9151f]' : 'border-white/[0.07]'} ${item.available ? '' : 'opacity-50'}`}>
+                  <div
+                    key={item.id}
+                    data-testid="dish-tile"
+                    onClick={item.available ? () => change(item, 1) : undefined}
+                    style={flash === item.id ? { boxShadow: 'inset 0 0 24px 5px rgba(217,21,31,0.7)' } : undefined}
+                    className={`select-none overflow-hidden rounded-2xl border bg-[#0b0b0d] p-2.5 transition duration-150 ${qty ? 'border-[#d9151f]' : 'border-white/[0.07]'} ${item.available ? 'cursor-pointer' : 'opacity-50'} ${flash === item.id ? 'scale-[0.97]' : ''}`}
+                  >
                     <FadeImage src={item.image} alt="" className="h-24 w-full rounded-xl bg-white/5" />
                     <h3 className="mt-2 truncate text-sm font-semibold text-white" title={name}>{name}</h3>
                     <p className="mt-0.5 text-sm font-bold text-white">
@@ -193,12 +208,12 @@ export default function AdminNewOrder() {
                         <span className="text-xs text-white/50">{t('admin.newOrder.unavailable')}</span>
                       ) : qty ? (
                         <div className="flex items-center justify-between rounded-lg bg-white/[0.06] p-1">
-                          <button type="button" aria-label={t('admin.newOrder.removeAria', { name })} onClick={() => change(item, -1)} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10"><Minus size={16} /></button>
+                          <button type="button" aria-label={t('admin.newOrder.removeAria', { name })} onClick={(e) => { e.stopPropagation(); change(item, -1) }} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10"><Minus size={16} /></button>
                           <span className="text-sm font-semibold" aria-live="polite">{qty}</span>
-                          <button type="button" aria-label={t('admin.newOrder.addAria', { name })} onClick={() => change(item, 1)} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10"><Plus size={16} /></button>
+                          <button type="button" aria-label={t('admin.newOrder.addAria', { name })} onClick={(e) => { e.stopPropagation(); change(item, 1) }} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10"><Plus size={16} /></button>
                         </div>
                       ) : (
-                        <button type="button" aria-label={t('admin.newOrder.addAria', { name })} onClick={() => change(item, 1)} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#d9151f] py-1.5 text-sm font-medium text-white hover:bg-[#f0222c]">
+                        <button type="button" aria-label={t('admin.newOrder.addAria', { name })} onClick={(e) => { e.stopPropagation(); change(item, 1) }} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#d9151f] py-1.5 text-sm font-medium text-white hover:bg-[#f0222c]">
                           <Plus size={15} /> {t('admin.newOrder.add')}
                         </button>
                       )}

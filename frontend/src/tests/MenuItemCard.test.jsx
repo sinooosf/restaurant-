@@ -49,3 +49,25 @@ describe('MenuItemCard', () => {
     expect(screen.getByRole('button', { name: /remove one coca-cola/i })).toBeInTheDocument()
   })
 })
+
+describe('MenuItemCard: tapping the card itself', () => {
+  const dish = { id: 'x1', name: 'Soup', price: 100, discountPercent: 0, available: true, image: '' }
+
+  it('adds one like the + button, with a pressed look, and a button tap counts once', async () => {
+    const user = userEvent.setup()
+    renderCard(dish)
+    await user.click(screen.getByTestId('menu-card'))
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.getByTestId('menu-card').style.boxShadow).toMatch(/inset/)
+
+    await user.click(screen.getByRole('button', { name: /another/i }))
+    expect(screen.getByText('2')).toBeInTheDocument() // not 3
+  })
+
+  it('does nothing on an unavailable dish', async () => {
+    const user = userEvent.setup()
+    renderCard({ ...dish, id: 'x2', available: false })
+    await user.click(screen.getByTestId('menu-card'))
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+  })
+})
