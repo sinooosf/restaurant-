@@ -9,6 +9,7 @@ import adminUi from './admin-ui'
 import adminOverview from './admin-overview'
 import adminOrders from './admin-orders'
 import adminReports from './admin-reports'
+import adminNewOrder from './admin-neworder'
 import adminMenu from './admin-menu'
 import adminTables from './admin-tables'
 import adminChatbot from './admin-chatbot'
@@ -17,7 +18,7 @@ import adminAssistant from './admin-assistant'
 
 const FILES = [
   common, customer, chatbot,
-  adminLayout, adminUi, adminOverview, adminOrders, adminReports, adminMenu,
+  adminLayout, adminUi, adminOverview, adminOrders, adminReports, adminNewOrder, adminMenu,
   adminTables, adminChatbot, adminLogin, adminAssistant,
 ]
 

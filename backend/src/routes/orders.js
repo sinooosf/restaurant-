@@ -2,18 +2,10 @@ import { Router } from 'express'
 import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
 import { HOME_TABLE_ID } from '../migrate.js'
-import { TZ } from '../time.js'
-import { unavailableReason } from './tables.js'
+import { placeOrder } from '../placeOrder.js'
 import { MAX_ORDER_NOTE, cleanNote, normalizeTableId, numericId, parseOrderLines } from '../validate.js'
 
 const router = Router()
-
-// Orders are numbered one after the other (#1, #2, #3...) and the count starts
-// again at 1 after midnight. Two customers ordering at the same instant must
-// never get the same number, so the numbering step takes this lock (it is
-// released automatically at COMMIT). It is the last thing a new order does,
-// so it is held for a few milliseconds only.
-const ORDER_NUMBER_LOCK = 7301
 
 // `db` is the pool, or a client that is already checked out. A route that
 // holds a client must pass it here: asking the pool for a SECOND connection
@@ -27,103 +19,14 @@ async function loadOrder(id, db = pool) {
 }
 
 // POST /api/orders  { tableId, items: [{ id, quantity }], note? }
-//
-// Only `id` and `quantity` from each line are trusted. Name and price are
-// always looked up fresh from menu_items here on the server — never taken
-// from what the customer's browser sends — so there's no way to place an
-// order for a price that isn't the real, current one.
+// (the rules live in ../placeOrder.js, shared with the dashboard's "New order")
 router.post('/', async (req, res, next) => {
-  const tableId = normalizeTableId(req.body?.tableId)
-  if (!tableId) {
-    return res.status(400).json({ error: 'tableId is required.' })
-  }
-
-  const parsed = parseOrderLines(req.body?.items)
-  if (parsed.error) return res.status(400).json({ error: parsed.error })
-
-  const note = cleanNote(req.body?.note, MAX_ORDER_NOTE)
-  if (note.error) return res.status(400).json({ error: note.error })
-
-  const client = await pool.connect()
   try {
-    await client.query('BEGIN')
-
-    const tableCheck = await client.query('SELECT * FROM restaurant_tables WHERE id = $1', [tableId])
-    if (tableCheck.rows.length === 0) {
-      await client.query('ROLLBACK').catch(() => {})
-      return res.status(400).json({ error: `Unknown table: ${tableId}` })
-    }
-
-    // A menu that was already open on a phone must not be able to order for a
-    // table the staff are cleaning or have taken out of service.
-    const closed = await unavailableReason(client, tableCheck.rows[0])
-    if (closed) {
-      await client.query('ROLLBACK').catch(() => {})
-      return res.status(409).json({
-        error: closed === 'cleaning'
-          ? 'This table is being cleaned. Please wait a moment.'
-          : 'This table is out of service. Please ask a staff member.',
-      })
-    }
-
-    const resolvedLines = []
-    for (const { id, quantity } of parsed.lines) {
-      const itemResult = await client.query('SELECT * FROM menu_items WHERE id = $1', [id])
-      const item = itemResult.rows[0]
-      if (!item) {
-        await client.query('ROLLBACK').catch(() => {})
-        return res.status(400).json({ error: `Unknown menu item: ${String(id).slice(0, 60)}` })
-      }
-      if (!item.available) {
-        await client.query('ROLLBACK').catch(() => {})
-        return res.status(400).json({ error: `"${item.name}" is not available right now.` })
-      }
-
-      const unitPrice = item.discount_percent
-        ? Math.round(item.price * (1 - item.discount_percent / 100))
-        : item.price
-
-      resolvedLines.push({ id: item.id, name: item.name, quantity, unitPrice })
-    }
-
-    const total = resolvedLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
-
-    const orderResult = await client.query(
-      'INSERT INTO orders (table_id, status, total, note) VALUES ($1, $2, $3, $4) RETURNING *',
-      [tableId, 'preparing', total, note.value],
-    )
-    let order = orderResult.rows[0]
-
-    for (const line of resolvedLines) {
-      await client.query(
-        'INSERT INTO order_items (order_id, item_id, name, quantity, unit_price) VALUES ($1,$2,$3,$4,$5)',
-        [order.id, line.id, line.name, line.quantity, line.unitPrice],
-      )
-    }
-
-    // Give the order today's next number: 1 + the highest number used today
-    // (today = the restaurant's own day, so it starts again at 1 after midnight).
-    await client.query('SELECT pg_advisory_xact_lock($1)', [ORDER_NUMBER_LOCK])
-    const numbered = await client.query(
-      `UPDATE orders
-          SET order_day = today.d,
-              daily_number = COALESCE((SELECT MAX(daily_number) FROM orders WHERE order_day = today.d), 0) + 1
-         FROM (SELECT (now() AT TIME ZONE $2)::date AS d) today
-        WHERE orders.id = $1
-        RETURNING orders.*`,
-      [order.id, TZ],
-    )
-    order = numbered.rows[0]
-
-    await client.query('COMMIT')
-    res.status(201).json(serializeOrder(order, resolvedLines.map((l) => ({
-      item_id: l.id, name: l.name, quantity: l.quantity, unit_price: l.unitPrice,
-    }))))
+    const result = await placeOrder(req.body)
+    if (result.error) return res.status(result.status).json({ error: result.error })
+    res.status(201).json(result.order)
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {})
     next(err)
-  } finally {
-    client.release()
   }
 })
 

@@ -6,6 +6,7 @@ import {
   ChartColumn,
   ClipboardList,
   House,
+  SquarePlus,
   LogOut,
   MessageSquareMore,
   Utensils,
@@ -17,6 +18,7 @@ import { orderTableLabel } from './components/format'
 
 const NAV_ITEMS = [
   { to: '/admin', labelKey: 'admin.layout.nav.overview', icon: House, end: true },
+  { to: '/admin/new-order', labelKey: 'admin.layout.nav.newOrder', icon: SquarePlus },
   { to: '/admin/orders', labelKey: 'admin.layout.nav.orders', icon: ClipboardList, badge: true },
   { to: '/admin/reports', labelKey: 'admin.layout.nav.reports', icon: ChartColumn },
   { to: '/admin/menu', labelKey: 'admin.layout.nav.menu', icon: Utensils },

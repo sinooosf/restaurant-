@@ -4,6 +4,7 @@ import { requireAdmin, checkAdminPassword, sendAuthError } from '../middleware/a
 import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
 import { daysBetween, resolveRange } from '../reportRange.js'
+import { placeOrder } from '../placeOrder.js'
 import { MAX_DISH_NOTE, checkDish, cleanNote, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
 import {
   serializeCategory,
@@ -566,6 +567,19 @@ router.get('/summary', async (req, res, next) => {
       pending: await attachItems(pending.rows),
       waiterCalls: await openWaiterCalls(),
     })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// A waiter places an order for a guest who has no phone or no internet:
+// { tableId: "3" | "home", items: [{ id, quantity }], note? }. Same rules as a
+// customer's order (prices from the server, daily number, closed tables...).
+router.post('/orders', async (req, res, next) => {
+  try {
+    const result = await placeOrder(req.body)
+    if (result.error) return res.status(result.status).json({ error: result.error })
+    res.status(201).json(result.order)
   } catch (err) {
     next(err)
   }

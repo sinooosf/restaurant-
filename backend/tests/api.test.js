@@ -187,7 +187,7 @@ describe('admin protection', () => {
     ['POST', '/admin/menu-items'], ['PUT', '/admin/menu-items/x'], ['DELETE', '/admin/menu-items/x'],
     ['POST', '/admin/categories'], ['DELETE', '/admin/categories/x'], ['PATCH', '/admin/orders/1/status'],
     ['PATCH', '/admin/orders/1/move'], ['POST', '/admin/orders/merge'], ['POST', '/admin/chatbot-faqs'],
-    ['GET', '/admin/earnings/today'], ['GET', '/admin/reports'], ['GET', '/admin/waiter-calls'], ['PATCH', '/admin/waiter-calls/1/resolve'],
+    ['GET', '/admin/earnings/today'], ['GET', '/admin/reports'], ['POST', '/admin/orders'], ['GET', '/admin/waiter-calls'], ['PATCH', '/admin/waiter-calls/1/resolve'],
   ]
 
   it('refuses every admin route without / with a wrong password', async () => {
@@ -650,6 +650,84 @@ describe('admin: reports by date', () => {
       const r = await report(q)
       assert.equal(r.status, 400, q)
     }
+  })
+})
+
+describe('admin: a waiter places an order from the dashboard', () => {
+  const staffOrder = (body) => api('/admin/orders', { method: 'POST', admin: true, body })
+  const finish = (id, status = 'completed') => api(`/admin/orders/${id}/status`, { method: 'PATCH', admin: true, body: { status } })
+
+  it('creates a normal order: kitchen status, daily number, note, total from the SERVER prices', async () => {
+    const before = await place('1', [line(0)])
+    await finish(before.body.id)
+
+    const res = await staffOrder({
+      tableId: '1',
+      // a lie about the price must be ignored
+      items: [{ id: dishes[0].id, quantity: 2, unitPrice: 1, price: 1, name: 'Free food' }, { id: dishes[1].id, quantity: 1 }],
+      note: 'no onions',
+    })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.status, 'preparing')
+    assert.equal(res.body.note, 'no onions')
+    assert.equal(res.body.number, before.body.number + 1) // same numbering as customer orders
+    assert.notEqual(res.body.items[0].name, 'Free food')
+    const priceOf = (d) => (d.discountPercent ? Math.round(d.price * (1 - d.discountPercent / 100)) : d.price)
+    assert.equal(res.body.total, priceOf(dishes[0]) * 2 + priceOf(dishes[1]))
+
+    // it shows up in the dashboard orders, like any other
+    const list = await api('/admin/orders', { admin: true })
+    assert.ok(list.body.orders.some((o) => o.id === res.body.id && o.status === 'preparing'))
+    // and the customer's phone can follow it too
+    assert.equal((await api(`/orders/${res.body.id}`)).body.id, res.body.id)
+    await finish(res.body.id)
+  })
+
+  it('works for the To Home link too', async () => {
+    const res = await staffOrder({ tableId: 'home', items: [{ id: dishes[0].id, quantity: 1 }] })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.tableId, 'home')
+    await finish(res.body.id)
+  })
+
+  it('refuses a wrong table, a dish that is gone/unavailable, empty or silly orders (400, never 500)', async () => {
+    const ok = [{ id: dishes[0].id, quantity: 1 }]
+    for (const body of [
+      {}, { items: ok }, { tableId: 'nope', items: ok }, { tableId: '1' }, { tableId: '1', items: [] },
+      { tableId: '1', items: [{ id: 'ghost', quantity: 1 }] }, { tableId: '1', items: [{ id: dishes[0].id, quantity: 0 }] },
+      { tableId: '1', items: [{ id: dishes[0].id, quantity: 1000 }] }, { tableId: '1', items: 'x' },
+      { tableId: '1', items: ok, note: 'x'.repeat(301) }, { tableId: { a: 1 }, items: ok },
+    ]) {
+      const res = await staffOrder(body)
+      assert.equal(res.status, 400, JSON.stringify(body).slice(0, 60))
+    }
+
+    await api(`/admin/menu-items/${dishes[2].id}`, { method: 'PUT', admin: true, body: { available: false } })
+    const gone = await staffOrder({ tableId: '1', items: [{ id: dishes[2].id, quantity: 1 }] })
+    assert.equal(gone.status, 400)
+    assert.match(gone.body.error, /not available/)
+    await api(`/admin/menu-items/${dishes[2].id}`, { method: 'PUT', admin: true, body: { available: true } })
+  })
+
+  it('a table that is out of service is refused (409), and fine again once reopened', async () => {
+    await api('/admin/tables', { method: 'POST', admin: true, body: { id: 'staff1', seats: 2 } })
+    await api('/admin/tables/staff1', { method: 'PATCH', admin: true, body: { status: 'out_of_service' } })
+    const refused = await staffOrder({ tableId: 'staff1', items: [{ id: dishes[0].id, quantity: 1 }] })
+    assert.equal(refused.status, 409)
+
+    await api('/admin/tables/staff1', { method: 'PATCH', admin: true, body: { status: 'auto' } })
+    const ok = await staffOrder({ tableId: 'staff1', items: [{ id: dishes[0].id, quantity: 1 }] })
+    assert.equal(ok.status, 201)
+    await finish(ok.body.id)
+  })
+
+  it('ten orders at once all get different numbers', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => staffOrder({ tableId: String((i % 5) + 1), items: [{ id: dishes[0].id, quantity: 1 }] })),
+    )
+    assert.ok(results.every((r) => r.status === 201))
+    assert.equal(new Set(results.map((r) => r.body.number)).size, 10)
+    for (const r of results) await finish(r.body.id)
   })
 })
 

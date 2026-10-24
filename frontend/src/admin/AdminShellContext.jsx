@@ -53,14 +53,15 @@ export function AdminShellProvider({ children }) {
   const seenIds = useRef(null) // order ids already known (null until the first load)
   const seenCalls = useRef(null) // waiter-call ids already known
 
-  const refreshSummary = useCallback(async () => {
+  // silent: the caller itself just created the order, so no "new order" chime.
+  const refreshSummary = useCallback(async ({ silent = false } = {}) => {
     try {
       const data = await adminFetchSummary(password)
       if (!mounted.current) return
 
       // A new order appeared since the last check -> play the chime.
       const ids = new Set(data.pending.map((o) => o.id))
-      if (seenIds.current && [...ids].some((id) => !seenIds.current.has(id))) {
+      if (!silent && seenIds.current && [...ids].some((id) => !seenIds.current.has(id))) {
         playNewOrderSound()
       }
       seenIds.current = new Set([...(seenIds.current || []), ...ids])

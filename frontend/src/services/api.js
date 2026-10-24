@@ -250,6 +250,14 @@ export function adminFetchReport(password, { range = 'week', from, to } = {}) {
   return request(`/admin/reports?${query}`, { password })
 }
 
+// A waiter places an order from the dashboard (guest without a phone).
+// Only id + quantity are sent: the server uses its own names and prices.
+export function adminCreateOrder(password, { tableId, items, note }) {
+  const body = { tableId, items: items.map((item) => ({ id: item.id, quantity: item.quantity })) }
+  if (note && note.trim()) body.note = note.trim()
+  return request('/admin/orders', { method: 'POST', body, password })
+}
+
 export function adminMoveOrder(password, id, tableId) {
   return request(`/admin/orders/${id}/move`, { method: 'PATCH', body: { tableId }, password })
 }
