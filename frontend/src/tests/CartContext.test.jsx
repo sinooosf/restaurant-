@@ -18,6 +18,14 @@ describe('CartContext', () => {
     expect(result.current.totalPrice).toBe(0)
   })
 
+  it('removeLine deletes a dish completely, whatever its quantity (swipe to delete)', () => {
+    const { result } = renderHook(() => useCart(), { wrapper })
+    act(() => { result.current.addItem('pizza-1'); result.current.addItem('pizza-1'); result.current.addItem('pizza-1') })
+    expect(result.current.totalCount).toBe(3)
+    act(() => result.current.removeLine('pizza-1'))
+    expect(result.current.totalCount).toBe(0)
+  })
+
   it('adds an item and totals it correctly', () => {
     const { result } = renderHook(() => useCart(), { wrapper })
 

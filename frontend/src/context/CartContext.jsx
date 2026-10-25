@@ -100,6 +100,16 @@ export function CartProvider({ children }) {
     })
   }, [])
 
+  // Remove a dish completely, whatever its quantity (swipe to delete).
+  const removeLine = useCallback((itemId) => {
+    setQuantities((prev) => {
+      if (!(itemId in prev)) return prev
+      const next = { ...prev }
+      delete next[itemId]
+      return next
+    })
+  }, [])
+
   const clearCart = useCallback(() => {
     setQuantities({})
   }, [])
@@ -158,6 +168,7 @@ export function CartProvider({ children }) {
     totalPrice,
     addItem,
     removeItem,
+    removeLine,
     clearCart,
     restoreItems,
   }

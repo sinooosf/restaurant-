@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronDown, Minus, Plus, ShoppingCart } from 'lucide-react'
+import { AnimatePresence, motion, useAnimation } from 'framer-motion'
+import { ChevronDown, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 import FadeImage from '../ui/FadeImage'
 import { useLanguage } from '../../i18n/LanguageContext'
@@ -24,6 +24,7 @@ export default function CartBar({
     totalPrice,
     addItem,
     removeItem,
+    removeLine,
   } = useCart()
 
   const { t, formatMoney, itemName } = useLanguage()
@@ -97,10 +98,7 @@ export default function CartBar({
                 </p>
               ) : (
                 lines.map(({ item, quantity, lineTotal }) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-2.5 rounded-xl bg-panel-light p-2"
-                  >
+                  <SwipeRow key={item.id} onRemove={() => removeLine(item.id)}>
                     <FadeImage
                       src={item.image}
                       alt={itemName(item)}
@@ -140,7 +138,7 @@ export default function CartBar({
                         <Plus size={12} />
                       </button>
                     </div>
-                  </div>
+                  </SwipeRow>
                 ))
               )}
             </div>
@@ -198,6 +196,56 @@ export default function CartBar({
       >
         {placing ? t('cart.wait') : placeLabel || t('cart.place')}
       </button>
+    </div>
+  )
+}
+
+// A dish line you can swipe left or right to remove it, like dismissing a
+// notification: a red trash can shows behind it, and letting go past the
+// halfway mark (or with a quick flick) deletes the dish.
+const SWIPE_DISTANCE = 90
+const SWIPE_SPEED = 500
+
+function SwipeRow({ children, onRemove }) {
+  const controls = useAnimation()
+  const [dragging, setDragging] = useState(false)
+
+  async function handleDragEnd(_event, info) {
+    setDragging(false)
+    const far = Math.abs(info.offset.x) > SWIPE_DISTANCE
+    const flick = Math.abs(info.velocity.x) > SWIPE_SPEED && Math.abs(info.offset.x) > 30
+    if (far || flick) {
+      const direction = info.offset.x > 0 ? 1 : -1
+      await controls.start({ x: direction * 420, opacity: 0, transition: { duration: 0.18 } })
+      onRemove()
+    } else {
+      controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 35 } })
+    }
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-xl bg-maroon-bright">
+      {/* The trash can waiting behind the dish, on both sides */}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-0 flex items-center justify-between px-4 text-cream transition-opacity ${dragging ? 'opacity-100' : 'opacity-0'}`}
+      >
+        <Trash2 size={18} />
+        <Trash2 size={18} />
+      </span>
+
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.9}
+        animate={controls}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={handleDragEnd}
+        data-testid="swipe-row"
+        className="relative flex touch-pan-y items-center gap-2.5 rounded-xl bg-panel-light p-2"
+      >
+        {children}
+      </motion.div>
     </div>
   )
 }
