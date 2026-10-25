@@ -443,8 +443,8 @@ function DraggableTable({ table, pos, highlighted, floorRef, onMove, onDrop, onM
     drag.current = null
     setDragging(false)
     if (d?.moved) onDrop(d.last)
-    // A finger has no right-click or double-click: a simple tap opens the options.
-    else if (d && event.type === 'pointerup' && event.pointerType === 'touch') {
+    // One click or tap (without dragging) opens the options.
+    else if (d && event.type === 'pointerup') {
       const r = floorRef.current.getBoundingClientRect()
       onMenu(event.clientX - r.left, event.clientY - r.top)
     }
@@ -482,10 +482,6 @@ function DraggableTable({ table, pos, highlighted, floorRef, onMove, onDrop, onM
       onPointerMove={pointerMove}
       onPointerUp={pointerUp}
       onPointerCancel={pointerUp}
-      onDoubleClick={(e) => {
-        const r = floorRef.current.getBoundingClientRect()
-        onMenu(e.clientX - r.left, e.clientY - r.top)
-      }}
       onContextMenu={(e) => {
         e.preventDefault()
         const r = floorRef.current.getBoundingClientRect()

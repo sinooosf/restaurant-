@@ -374,7 +374,10 @@ function ItemCard({ item, categoryLabel, badge, saving, onToggle, onEdit, onDele
   const name = itemName(item)
 
   return (
-    <div className={`overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3 transition ${item.available ? '' : 'opacity-60'}`}>
+    <div
+      onClick={onEdit}
+      className={`cursor-pointer overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3 transition hover:border-white/20 ${item.available ? '' : 'opacity-60'}`}
+    >
       <div className="relative">
         <FadeImage src={item.image} alt={name} className="h-[120px] w-full rounded-xl bg-white/5" />
         {item.isBest && (
@@ -398,7 +401,7 @@ function ItemCard({ item, categoryLabel, badge, saving, onToggle, onEdit, onDele
         {discounted && <span className="ms-2 text-xs font-normal text-white/40 line-through" dir="auto">{formatMoney(item.price)}</span>}
       </p>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={onToggle}

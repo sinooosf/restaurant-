@@ -196,7 +196,11 @@ export default function AdminOrders() {
                   </li>
                 )}
                 {rows.map((order) => (
-                  <li key={order.id} className="rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3.5">
+                  <li
+                    key={order.id}
+                    onClick={() => setSelected(order)}
+                    className="cursor-pointer rounded-2xl border border-white/[0.07] bg-[#0b0b0d] p-3.5 transition active:bg-white/[0.04]"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="font-semibold text-white">#{orderNumber(order)}</span>
@@ -216,7 +220,7 @@ export default function AdminOrders() {
                         <p className="font-semibold text-white">{money(order.total, lang)}</p>
                         <p className="text-xs text-white/50">{clockTime(order.createdAt, lang)}</p>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => setSelected(order)}
@@ -259,7 +263,11 @@ export default function AdminOrders() {
                       </tr>
                     )}
                     {rows.map((order) => (
-                      <tr key={order.id} className="border-b border-white/[0.05] last:border-0">
+                      <tr
+                        key={order.id}
+                        onClick={() => setSelected(order)}
+                        className="cursor-pointer border-b border-white/[0.05] transition hover:bg-white/[0.03] last:border-0"
+                      >
                         <td className="py-3.5 pe-3 font-medium text-white">#{orderNumber(order)}</td>
                         <td className="py-3.5 pe-3"><TablePill tableId={order.tableId} /></td>
                         <td className="truncate py-3.5 pe-3 text-white/85">
@@ -272,7 +280,7 @@ export default function AdminOrders() {
                         <td className="py-3.5 pe-3"><StatusBadge status={order.status} /></td>
                         <td className="hidden py-3.5 pe-3 text-white/70 md:table-cell">{clockTime(order.createdAt, lang)}</td>
                         <td className="py-3.5">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               onClick={() => setSelected(order)}
