@@ -54,6 +54,7 @@ export default function Header({
         <button
           type="button"
           onClick={onOpenCart}
+          data-cart-toggle
           aria-label={t('header.openOrder')}
           className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-panel text-cream transition hover:bg-panel-light min-[400px]:h-11 min-[400px]:w-11"
         >

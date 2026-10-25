@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { ChevronDown, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
@@ -63,6 +63,21 @@ export default function CartBar({
   }
 
   const canPlaceOrder = totalCount > 0 && !placing
+
+  // Tapping anywhere outside the cart closes the open list (no need to find
+  // the little arrow). The header's cart button toggles by itself, so it is
+  // left alone here, otherwise it would close and reopen at the same time.
+  useEffect(() => {
+    if (!expanded) return undefined
+    function onOutside(event) {
+      if (barRef.current?.contains(event.target)) return
+      if (event.target.closest?.('[data-cart-toggle]')) return
+      toggleExpanded()
+    }
+    document.addEventListener('pointerdown', onOutside)
+    return () => document.removeEventListener('pointerdown', onOutside)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, isControlled, onToggleExpanded])
 
   async function handlePlaceOrder() {
     if (!canPlaceOrder) return
