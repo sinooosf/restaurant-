@@ -187,7 +187,7 @@ function Content({ data, metric, setMetric }) {
         {t('admin.reports.compared', { range: dayRange(data.previousFrom, data.previousTo, lang) })}
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
         <StatCard
           icon={<ClipboardList size={26} />}
           tone="red"

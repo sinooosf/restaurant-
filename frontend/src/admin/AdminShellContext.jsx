@@ -50,6 +50,7 @@ export function AdminShellProvider({ children }) {
 
   const [summary, setSummary] = useState({ pendingCount: 0, pending: [], waiterCalls: [] })
   const [navOpen, setNavOpen] = useState(false)
+  const [topbarSlot, setTopbarSlot] = useState(null) // where PageTop puts language / day / bell on phones
   const push = usePushAlerts(password) // alerts even when the dashboard is closed
   const mounted = useRef(true)
   const seenIds = useRef(null) // order ids already known (null until the first load)
@@ -108,8 +109,8 @@ export function AdminShellProvider({ children }) {
   )
 
   const value = useMemo(
-    () => ({ summary, refreshSummary, resolveWaiterCall, navOpen, setNavOpen, push }),
-    [summary, refreshSummary, resolveWaiterCall, navOpen, push]
+    () => ({ summary, refreshSummary, resolveWaiterCall, navOpen, setNavOpen, push, topbarSlot, setTopbarSlot }),
+    [summary, refreshSummary, resolveWaiterCall, navOpen, push, topbarSlot]
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

@@ -143,6 +143,7 @@ function Shell() {
 
         {/* Logout */}
         <div className="relative mt-auto px-3 pb-6">
+          <AlertsSwitch />
           <button
             type="button"
             onClick={logout}
@@ -174,7 +175,7 @@ function Shell() {
 // Phones and tablets: a bar that stays at the top while you scroll, so the
 // menu button and the logo are always one tap away (no scrolling back up).
 function MobileTopBar() {
-  const { summary, setNavOpen } = useAdminShell()
+  const { setNavOpen, setTopbarSlot } = useAdminShell()
   const { t } = useLanguage()
   const { pathname } = useLocation()
   const current =
@@ -182,7 +183,7 @@ function MobileTopBar() {
     NAV_ITEMS[0]
 
   return (
-    <header className="sticky top-0 z-20 -mb-px flex h-14 items-center gap-3 border-b border-white/[0.07] bg-[#09090b]/95 px-4 backdrop-blur sm:px-6 lg:hidden">
+    <header className="sticky top-0 z-20 -mb-px flex h-14 items-center gap-2 border-b border-white/[0.07] bg-[#09090b]/95 px-3 backdrop-blur sm:gap-3 sm:px-6 lg:hidden">
       <button
         type="button"
         onClick={() => setNavOpen(true)}
@@ -191,13 +192,10 @@ function MobileTopBar() {
       >
         <MenuIcon size={19} />
       </button>
-      <img src="/logo.png" alt="Meet The Chefs" className="h-9 w-auto object-contain" />
-      <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">{t(current.labelKey)}</p>
-      {summary.pendingCount > 0 && (
-        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#e11d28] px-1.5 text-xs font-bold text-white">
-          {summary.pendingCount > 99 ? '99+' : summary.pendingCount}
-        </span>
-      )}
+      <img src="/logo.png" alt="Meet The Chefs" className="h-9 w-auto shrink-0 object-contain" />
+      <p className="hidden min-w-0 flex-1 truncate text-sm font-semibold text-white/85 sm:block">{t(current.labelKey)}</p>
+      {/* The day picker, language and bell of the current page are placed here */}
+      <div ref={setTopbarSlot} className="ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2" />
     </header>
   )
 }
@@ -251,9 +249,30 @@ function MobileTabBar() {
   )
 }
 
+// The on/off switch for alerts on this device, in the side menu.
+function AlertsSwitch() {
+  const { push } = useAdminShell()
+  const { t } = useLanguage()
+  if (!push || push.status === 'unsupported') return null
+  const on = push.status === 'on'
+  const denied = push.status === 'denied'
+  return (
+    <button
+      type="button"
+      disabled={denied || push.status === 'working'}
+      onClick={on ? push.disable : push.enable}
+      title={denied ? t('admin.layout.alerts.denied') : undefined}
+      className="mb-1 flex w-full items-center gap-3.5 rounded-xl px-5 py-3 text-start text-[14px] font-medium text-white/75 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-60"
+    >
+      {on ? <BellRing size={21} strokeWidth={1.8} className="text-emerald-400" /> : <BellOff size={21} strokeWidth={1.8} />}
+      <span className="flex-1">{denied ? t('admin.layout.alerts.denied') : on ? t('admin.layout.alerts.on') : t('admin.layout.alerts.enable')}</span>
+    </button>
+  )
+}
+
 // Asks once to turn on alerts for this device (new orders and waiter calls
-// pop up with a sound even when the dashboard is closed). After "Turn on" it
-// becomes a small status line; "Not now" hides it until next time.
+// pop up with a sound even when the dashboard is closed). "Not now" hides it
+// until the next visit; the side menu keeps an on/off switch.
 const ALERTS_DISMISSED = 'mtc-alerts-dismissed'
 
 function AlertsBanner() {
@@ -269,41 +288,19 @@ function AlertsBanner() {
 
   if (!push || push.status === 'unsupported') return null
 
-  if (push.status === 'on') {
-    return (
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-200">
-        <BellRing size={16} className="shrink-0" />
-        <span className="flex-1">{t('admin.layout.alerts.on')}</span>
-        <button type="button" onClick={push.disable} className="shrink-0 text-xs underline opacity-80 hover:opacity-100">
-          {t('admin.layout.alerts.off')}
-        </button>
-      </div>
-    )
-  }
-
-  if (push.status === 'denied') {
-    if (dismissed) return null
-    return (
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100">
-        <BellOff size={16} className="shrink-0" />
-        <span className="flex-1">{t('admin.layout.alerts.denied')}</span>
-        <button type="button" onClick={() => { try { sessionStorage.setItem(ALERTS_DISMISSED, '1') } catch { /* ignore */ } setDismissed(true) }} className="shrink-0 text-xs underline">
-          {t('admin.layout.alerts.later')}
-        </button>
-      </div>
-    )
-  }
+  // Already on, blocked or unavailable: nothing to show here (the menu has the switch).
+  if (push.status === 'on' || push.status === 'denied') return null
 
   if (dismissed) return null
 
   return (
-    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[#f0222c]/40 bg-[#2a0709]/70 px-4 py-3 sm:flex-row sm:items-center">
+    <div className="mb-3 flex flex-col gap-2.5 rounded-2xl border border-[#f0222c]/40 bg-[#2a0709]/70 px-3 py-3 sm:flex-row sm:items-center sm:px-4">
       <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d9151f] text-white sm:flex">
         <BellRing size={20} />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[15px] font-semibold text-white">{t('admin.layout.alerts.title')}</p>
-        <p className="text-xs text-white/60">{t('admin.layout.alerts.text')}</p>
+        <p className="hidden text-xs text-white/60 sm:block">{t('admin.layout.alerts.text')}</p>
       </div>
       <div className="flex shrink-0 gap-2">
         <button
@@ -343,9 +340,9 @@ function WaiterAlerts() {
         return (
           <div
             key={call.id}
-            className="flex items-center gap-3 rounded-2xl border border-[#f0222c]/60 bg-[#2a0709]/95 px-4 py-3 shadow-[0_8px_30px_rgba(217,21,31,0.35)] backdrop-blur"
+            className="flex items-center gap-3 rounded-2xl border border-[#f0222c]/60 bg-[#2a0709]/95 px-3 py-2 sm:px-4 sm:py-3 shadow-[0_8px_30px_rgba(217,21,31,0.35)] backdrop-blur"
           >
-            <span className="flex h-10 w-10 shrink-0 animate-pulse items-center justify-center rounded-full bg-[#d9151f] text-white">
+            <span className="flex h-9 w-9 shrink-0 animate-pulse sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#d9151f] text-white">
               <BellRing size={20} />
             </span>
             <div className="min-w-0 flex-1">

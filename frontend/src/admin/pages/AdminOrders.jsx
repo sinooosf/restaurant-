@@ -155,7 +155,7 @@ export default function AdminOrders() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
             <StatCard icon={<ClipboardList size={26} />} tone="red" label={t('admin.orders.totalOrders')} value={overview.current.orders} delta={percentChange(overview.current.orders, overview.previous.orders)} sub={vs} />
             <StatCard icon={<CircleDollarSign size={28} />} tone="green" label={t('admin.orders.totalSales')} value={money(overview.current.revenue, lang)} delta={percentChange(overview.current.revenue, overview.previous.revenue)} sub={vs} />
             <StatCard icon={<UsersRound size={26} />} tone="orange" label={t('admin.orders.avgOrder')} value={money(overview.current.avg, lang)} delta={percentChange(overview.current.avg, overview.previous.avg)} sub={vs} />
@@ -165,11 +165,11 @@ export default function AdminOrders() {
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4 2xl:grid-cols-[minmax(0,1fr)_330px]">
             {/* All orders */}
             <Card className="min-w-0 p-4 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <CardTitle icon={<List size={24} />} title={t('admin.orders.allOrders')} />
 
-                <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
-                  <div className="relative min-w-0 basis-full flex-1 sm:min-w-[200px] sm:max-w-[330px] sm:basis-auto">
+                <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
+                  <div className="relative w-full min-w-0 sm:w-auto sm:min-w-[200px] sm:max-w-[330px] sm:flex-1">
                     <Search size={16} className="pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-white/45" />
                     <input
                       value={search}

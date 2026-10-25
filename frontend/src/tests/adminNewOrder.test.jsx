@@ -85,6 +85,7 @@ describe('Dashboard: New order', () => {
     const add = screen.getByRole('button', { name: 'Add Margherita' })
     fireEvent.click(add)
     fireEvent.click(screen.getAllByRole('button', { name: 'Add Margherita' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Soup' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add Chorba' }))
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'home' } })
     fireEvent.change(screen.getByPlaceholderText(/no onions/i), { target: { value: 'no salt' } })
@@ -105,7 +106,7 @@ describe('Dashboard: New order', () => {
     adminCreateOrder.mockRejectedValue(new Error('This table is out of service.'))
     renderPage()
     await screen.findByText('Margherita')
-    fireEvent.click(screen.getByRole('button', { name: 'Add Chorba' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Margherita' }))
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '1' } })
     fireEvent.click(send())
 
@@ -115,8 +116,22 @@ describe('Dashboard: New order', () => {
 
   it('does not let an unavailable dish be added', async () => {
     renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Dessert' }))
     await screen.findByText('Tiramisu')
     expect(screen.queryByRole('button', { name: 'Add Tiramisu' })).not.toBeInTheDocument()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
+  })
+})
+
+describe('Dashboard: New order filters', () => {
+  it('has no "All" chip, opens the first category, and search looks in every category', async () => {
+    renderPage()
+    await screen.findByText('Margherita')
+    expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Chorba')).not.toBeInTheDocument() // other category
+
+    fireEvent.change(screen.getByPlaceholderText('Search a dish…'), { target: { value: 'chor' } })
+    expect(screen.getByText('Chorba')).toBeInTheDocument()
+    expect(screen.queryByText('Margherita')).not.toBeInTheDocument()
   })
 })

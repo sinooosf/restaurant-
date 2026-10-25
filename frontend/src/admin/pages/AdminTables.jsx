@@ -155,7 +155,7 @@ export default function AdminTables() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
             <StatCard icon={<Armchair size={26} />} tone="red" label={t('admin.tables.total')} value={floor.length} sub={t('admin.tables.inRestaurant')} />
             <StatCard icon={<UsersRound size={26} />} tone="green" label={t('admin.tables.occupiedTables')} value={count('occupied')} sub={`${pct(count('occupied'))}%`} />
             <StatCard icon={<Clock3 size={26} />} tone="orange" label={t('admin.tables.availableTables')} value={count('available')} sub={`${pct(count('available'))}%`} />

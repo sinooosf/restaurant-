@@ -230,7 +230,7 @@ export default function AdminMenu() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr]">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
             <StatCard icon={<Utensils size={26} />} tone="red" label={t('admin.menu.totalItems')} value={items.length} sub={t('admin.menu.totalItemsSub')} />
             <StatCard icon={<ToggleRight size={28} />} tone="green" label={t('admin.menu.availableItems')} value={items.filter((i) => i.available).length} sub={t('admin.menu.availableItemsSub')} />
             <StatCard icon={<Tag size={26} />} tone="orange" label={t('admin.menu.categories')} value={categories.length} sub={t('admin.menu.categoriesSub')} />
