@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import express from 'express'
+import compression from 'compression'
 import cors from 'cors'
 import menuRoutes from './routes/menu.js'
 import tableRoutes from './routes/tables.js'
@@ -20,6 +21,9 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
 
+// Smaller answers = faster loading on slow connections (JSON shrinks ~5x;
+// pictures are already compressed and are left alone).
+app.use(compression())
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json({ limit: '100kb' }))
 

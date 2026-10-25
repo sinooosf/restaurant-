@@ -550,22 +550,26 @@ router.patch('/waiter-calls/:id/resolve', numericId, async (req, res, next) => {
 // "Orders" in the sidebar and the notification bell.
 router.get('/summary', async (req, res, next) => {
   try {
-    const pending = await pool.query(
-      `SELECT * FROM orders
-        WHERE status IN ('preparing', 'almost')
-          AND created_at > now() - interval '12 hours'
-        ORDER BY created_at DESC
-        LIMIT 8`,
-    )
-    const count = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM orders
-        WHERE status IN ('preparing', 'almost')
-          AND created_at > now() - interval '12 hours'`,
-    )
+    // The three questions are independent, so ask them at the same time.
+    const [pending, count, waiterCalls] = await Promise.all([
+      pool.query(
+        `SELECT * FROM orders
+          WHERE status IN ('preparing', 'almost')
+            AND created_at > now() - interval '12 hours'
+          ORDER BY created_at DESC
+          LIMIT 8`,
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM orders
+          WHERE status IN ('preparing', 'almost')
+            AND created_at > now() - interval '12 hours'`,
+      ),
+      openWaiterCalls(),
+    ])
     res.json({
       pendingCount: count.rows[0].n,
       pending: await attachItems(pending.rows),
-      waiterCalls: await openWaiterCalls(),
+      waiterCalls,
     })
   } catch (err) {
     next(err)
