@@ -653,6 +653,47 @@ describe('admin: reports by date', () => {
   })
 })
 
+describe('alerts when the dashboard is closed (Web Push)', () => {
+  const sub = { endpoint: 'https://push.invalid/abc', keys: { p256dh: 'BPk', auth: 'au' } }
+
+  it('needs the staff password', async () => {
+    assert.equal((await api('/admin/push/key')).status, 401)
+    assert.equal((await api('/admin/push/subscribe', { method: 'POST', body: sub })).status, 401)
+  })
+
+  it('gives a stable public key', async () => {
+    const a = await api('/admin/push/key', { admin: true })
+    const b = await api('/admin/push/key', { admin: true })
+    assert.equal(a.status, 200)
+    assert.ok(a.body.publicKey.length > 40)
+    assert.equal(a.body.publicKey, b.body.publicKey)
+  })
+
+  it('rejects a broken subscription, accepts a good one twice (no duplicates)', async () => {
+    for (const body of [{}, { endpoint: 'http://insecure', keys: sub.keys }, { endpoint: sub.endpoint }, { endpoint: sub.endpoint, keys: { p256dh: 1, auth: 2 } }]) {
+      assert.equal((await api('/admin/push/subscribe', { method: 'POST', body, admin: true })).status, 400)
+    }
+    assert.equal((await api('/admin/push/subscribe', { method: 'POST', body: sub, admin: true })).status, 201)
+    assert.equal((await api('/admin/push/subscribe', { method: 'POST', body: sub, admin: true })).status, 201)
+    const db = new pg.Client({ connectionString: TEST_DB })
+    await db.connect()
+    const n = (await db.query('SELECT COUNT(*)::int AS n FROM push_subscriptions WHERE endpoint = $1', [sub.endpoint])).rows[0].n
+    await db.end()
+    assert.equal(n, 1)
+  })
+
+  it('an order and a waiter call still work when the push service is unreachable', async () => {
+    const r = await place('2', [line(0)])
+    assert.equal(r.status, 201)
+    const call = await api('/waiter-calls', { method: 'POST', body: { tableId: '4' } })
+    assert.equal(call.status, 201)
+  })
+
+  it('can be turned off', async () => {
+    assert.equal((await api('/admin/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint }, admin: true })).status, 200)
+  })
+})
+
 describe('admin: a waiter places an order from the dashboard', () => {
   const staffOrder = (body) => api('/admin/orders', { method: 'POST', admin: true, body })
   const finish = (id, status = 'completed') => api(`/admin/orders/${id}/status`, { method: 'PATCH', admin: true, body: { status } })

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
+import { notifyWaiterCall } from '../push.js'
 import { normalizeTableId, numericId } from '../validate.js'
 
 const router = Router()
@@ -31,6 +32,7 @@ router.post('/', async (req, res, next) => {
     )
     if (created.rows[0]) {
       const c = created.rows[0]
+      notifyWaiterCall({ id: c.id, tableId: c.table_id })
       return res.status(201).json({ id: c.id, tableId: c.table_id, createdAt: c.created_at, resolved: false })
     }
 

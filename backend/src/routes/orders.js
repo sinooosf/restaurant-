@@ -3,6 +3,7 @@ import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
 import { HOME_TABLE_ID } from '../migrate.js'
 import { placeOrder } from '../placeOrder.js'
+import { notifyNewOrder } from '../push.js'
 import { MAX_ORDER_NOTE, cleanNote, normalizeTableId, numericId, parseOrderLines } from '../validate.js'
 
 const router = Router()
@@ -24,6 +25,7 @@ router.post('/', async (req, res, next) => {
   try {
     const result = await placeOrder(req.body)
     if (result.error) return res.status(result.status).json({ error: result.error })
+    notifyNewOrder(result.order) // alert the staff, even if the dashboard is closed
     res.status(201).json(result.order)
   } catch (err) {
     next(err)

@@ -5,6 +5,7 @@ import { HOME_TABLE_ID } from '../migrate.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
 import { daysBetween, resolveRange } from '../reportRange.js'
 import { placeOrder } from '../placeOrder.js'
+import { getVapid } from '../push.js'
 import { MAX_DISH_NOTE, checkDish, cleanNote, isInt, isText, normalizeTableId, numericId, safeTextId } from '../validate.js'
 import {
   serializeCategory,
@@ -584,6 +585,45 @@ router.post('/orders', async (req, res, next) => {
     const result = await placeOrder(req.body)
     if (result.error) return res.status(result.status).json({ error: result.error })
     res.status(201).json(result.order)
+  } catch (err) {
+    next(err)
+  }
+})
+
+// ---- Alerts when the dashboard is closed (Web Push) ----
+router.get('/push/key', async (req, res, next) => {
+  try {
+    res.json({ publicKey: (await getVapid()).publicKey })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/push/subscribe', async (req, res, next) => {
+  try {
+    const { endpoint, keys } = req.body || {}
+    if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint) || endpoint.length > 1000
+      || typeof keys?.p256dh !== 'string' || typeof keys?.auth !== 'string'
+      || keys.p256dh.length > 200 || keys.auth.length > 100) {
+      return res.status(400).json({ error: 'Invalid push subscription.' })
+    }
+    await pool.query(
+      `INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES ($1, $2, $3)
+       ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+      [endpoint, keys.p256dh, keys.auth],
+    )
+    res.status(201).json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/push/unsubscribe', async (req, res, next) => {
+  try {
+    if (typeof req.body?.endpoint === 'string') {
+      await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [req.body.endpoint])
+    }
+    res.json({ ok: true })
   } catch (err) {
     next(err)
   }

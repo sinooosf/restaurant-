@@ -258,6 +258,19 @@ export function adminCreateOrder(password, { tableId, items, note }) {
   return request('/admin/orders', { method: 'POST', body, password })
 }
 
+// Alerts that reach this device even when the dashboard is closed (Web Push).
+export function adminPushKey(password) {
+  return request('/admin/push/key', { password })
+}
+
+export function adminPushSubscribe(password, subscription) {
+  return request('/admin/push/subscribe', { method: 'POST', body: subscription, password })
+}
+
+export function adminPushUnsubscribe(password, endpoint) {
+  return request('/admin/push/unsubscribe', { method: 'POST', body: { endpoint }, password })
+}
+
 export function adminMoveOrder(password, id, tableId) {
   return request(`/admin/orders/${id}/move`, { method: 'PATCH', body: { tableId }, password })
 }

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { adminFetchSummary, adminResolveWaiterCall } from '../services/api'
 import { useAdminAuth } from './AdminAuthContext'
+import { usePushAlerts } from './usePushAlerts'
 
 const ShellContext = createContext(null)
 
@@ -49,6 +50,7 @@ export function AdminShellProvider({ children }) {
 
   const [summary, setSummary] = useState({ pendingCount: 0, pending: [], waiterCalls: [] })
   const [navOpen, setNavOpen] = useState(false)
+  const push = usePushAlerts(password) // alerts even when the dashboard is closed
   const mounted = useRef(true)
   const seenIds = useRef(null) // order ids already known (null until the first load)
   const seenCalls = useRef(null) // waiter-call ids already known
@@ -106,8 +108,8 @@ export function AdminShellProvider({ children }) {
   )
 
   const value = useMemo(
-    () => ({ summary, refreshSummary, resolveWaiterCall, navOpen, setNavOpen }),
-    [summary, refreshSummary, resolveWaiterCall, navOpen]
+    () => ({ summary, refreshSummary, resolveWaiterCall, navOpen, setNavOpen, push }),
+    [summary, refreshSummary, resolveWaiterCall, navOpen, push]
   )
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>

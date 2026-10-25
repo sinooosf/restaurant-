@@ -1,5 +1,5 @@
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Armchair,
   BellRing,
@@ -7,6 +7,7 @@ import {
   ClipboardList,
   House,
   SquarePlus,
+  BellOff,
   LogOut,
   Menu as MenuIcon,
   MessageSquareMore,
@@ -160,6 +161,7 @@ function Shell() {
 
       <main className="min-h-dvh px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:ms-[232px] lg:px-7 lg:pb-10 lg:pt-6 xl:px-8">
         <WaiterAlerts />
+        <AlertsBanner />
         <Outlet />
       </main>
 
@@ -246,6 +248,81 @@ function MobileTabBar() {
         </NavLink>
       ))}
     </nav>
+  )
+}
+
+// Asks once to turn on alerts for this device (new orders and waiter calls
+// pop up with a sound even when the dashboard is closed). After "Turn on" it
+// becomes a small status line; "Not now" hides it until next time.
+const ALERTS_DISMISSED = 'mtc-alerts-dismissed'
+
+function AlertsBanner() {
+  const { push } = useAdminShell()
+  const { t } = useLanguage()
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(ALERTS_DISMISSED) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  if (!push || push.status === 'unsupported') return null
+
+  if (push.status === 'on') {
+    return (
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-200">
+        <BellRing size={16} className="shrink-0" />
+        <span className="flex-1">{t('admin.layout.alerts.on')}</span>
+        <button type="button" onClick={push.disable} className="shrink-0 text-xs underline opacity-80 hover:opacity-100">
+          {t('admin.layout.alerts.off')}
+        </button>
+      </div>
+    )
+  }
+
+  if (push.status === 'denied') {
+    if (dismissed) return null
+    return (
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-100">
+        <BellOff size={16} className="shrink-0" />
+        <span className="flex-1">{t('admin.layout.alerts.denied')}</span>
+        <button type="button" onClick={() => { try { sessionStorage.setItem(ALERTS_DISMISSED, '1') } catch { /* ignore */ } setDismissed(true) }} className="shrink-0 text-xs underline">
+          {t('admin.layout.alerts.later')}
+        </button>
+      </div>
+    )
+  }
+
+  if (dismissed) return null
+
+  return (
+    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[#f0222c]/40 bg-[#2a0709]/70 px-4 py-3 sm:flex-row sm:items-center">
+      <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d9151f] text-white sm:flex">
+        <BellRing size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-semibold text-white">{t('admin.layout.alerts.title')}</p>
+        <p className="text-xs text-white/60">{t('admin.layout.alerts.text')}</p>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          disabled={push.status === 'working'}
+          onClick={push.enable}
+          className="rounded-lg bg-[#d9151f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#f0222c] disabled:opacity-60"
+        >
+          {push.status === 'working' ? t('admin.layout.alerts.working') : t('admin.layout.alerts.enable')}
+        </button>
+        <button
+          type="button"
+          onClick={() => { try { sessionStorage.setItem(ALERTS_DISMISSED, '1') } catch { /* ignore */ } setDismissed(true) }}
+          className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/80 hover:bg-white/5"
+        >
+          {t('admin.layout.alerts.later')}
+        </button>
+      </div>
+    </div>
   )
 }
 

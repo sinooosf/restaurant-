@@ -69,6 +69,23 @@ export async function ensureSchema() {
       ON waiter_calls(table_id) WHERE resolved_at IS NULL;
   `)
 
+  // Alerts that reach the staff's phone/computer even when the dashboard is
+  // not open (Web Push): one row per browser that turned alerts on, plus a tiny
+  // settings table that keeps the server's own push keys.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id          SERIAL PRIMARY KEY,
+      endpoint    TEXT NOT NULL UNIQUE,
+      p256dh      TEXT NOT NULL,
+      auth        TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key    TEXT PRIMARY KEY,
+      value  TEXT NOT NULL
+    );
+  `)
+
   // The order NUMBER the staff and the customer see ("#22"). It is not the
   // database id: it counts the orders of one day and starts again at 1 after
   // midnight (restaurant time zone). `order_day` is the day an order belongs to.
