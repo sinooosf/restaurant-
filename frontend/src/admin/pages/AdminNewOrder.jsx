@@ -150,12 +150,13 @@ export default function AdminNewOrder() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <Card>
+        <Card className="p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-white/35" />
               <input
-                className="input ps-9"
+                className="input"
+                style={{ paddingInlineStart: '2.5rem' }}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('admin.newOrder.searchPlaceholder')}
@@ -184,7 +185,7 @@ export default function AdminNewOrder() {
           ) : visible.length === 0 ? (
             <p className="py-12 text-center text-sm text-white/45">{t('admin.newOrder.noDishes')}</p>
           ) : (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-4">
               {visible.map((item) => {
                 const qty = lines[item.id] || 0
                 const name = itemName(item)
@@ -225,7 +226,7 @@ export default function AdminNewOrder() {
         </Card>
 
         <div ref={summaryRef} className="lg:sticky lg:top-4 lg:self-start">
-          <Card>
+          <Card className="p-4 sm:p-5">
             <CardTitle title={t('admin.newOrder.summary')} />
 
             <label className="mt-4 block">
