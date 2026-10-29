@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { HOME_TABLE_ID, VALID_TABLE_IDS } from '../data/tables'
+import { VALID_TABLE_IDS, isOpenLink } from '../data/tables'
 import { useLanguage } from '../i18n/LanguageContext'
 
 export default function TableNotFound() {
@@ -11,7 +11,7 @@ export default function TableNotFound() {
         {t('table.notFoundText')}
       </p>
       <div className="flex flex-wrap justify-center gap-2">
-        {VALID_TABLE_IDS.filter((id) => id !== HOME_TABLE_ID).map((id) => (
+        {VALID_TABLE_IDS.filter((id) => !isOpenLink(id)).map((id) => (
           <Link
             key={id}
             to={`/table/${id}`}

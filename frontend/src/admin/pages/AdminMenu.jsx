@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   ChefHat,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   LayoutGrid,
   List,
   Pencil,
@@ -23,6 +24,7 @@ import {
   adminDeleteMenuItem,
   adminFetchCategories,
   adminFetchMenuItems,
+  adminUpdateCategory,
   adminUploadImage,
   adminUpdateMenuItem,
 } from '../../services/api'
@@ -79,7 +81,7 @@ export default function AdminMenu() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [editing, setEditing] = useState(null) // an item, or EMPTY_ITEM for "add"
-  const [addingCategory, setAddingCategory] = useState(false)
+  const [categoryForm, setCategoryForm] = useState(null) // null = closed, {} = add, a category = edit
   const [savingId, setSavingId] = useState(null)
 
   const load = useCallback(async () => {
@@ -188,11 +190,27 @@ export default function AdminMenu() {
     }
   }
 
-  async function handleAddCategory(form) {
-    // Errors are left to the dialog, which shows them next to the form.
-    const created = await adminCreateCategory(password, form)
-    setCategories((prev) => [...prev, created])
-    setAddingCategory(false)
+  // Add (no id) or edit (has an id) a category. Errors are left to the dialog,
+  // which shows them next to the form. The order may have changed, so the list is reloaded.
+  async function handleSaveCategory(form) {
+    if (form.id) {
+      const changes = { name: form.name, image: form.image }
+      if (form.position) changes.position = form.position
+      await adminUpdateCategory(password, form.id, changes)
+    } else {
+      await adminCreateCategory(password, { name: form.name, image: form.image, position: form.position || 'last' })
+    }
+    setCategories(await adminFetchCategories(password))
+    setCategoryForm(null)
+  }
+
+  async function moveCategory(category, position) {
+    try {
+      await adminUpdateCategory(password, category.id, { position })
+      setCategories(await adminFetchCategories(password))
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   async function handleDeleteCategory(category) {
@@ -260,7 +278,13 @@ export default function AdminMenu() {
                 />
                 <PrimaryButton
                   className="h-11 w-full sm:w-auto"
-                  onClick={() => setEditing({ ...EMPTY_ITEM, categoryId: categories[0]?.id || '' })}
+                  disabled={categories.length === 0}
+                  onClick={() =>
+                    setEditing({
+                      ...EMPTY_ITEM,
+                      categoryId: activeCategory !== 'all' ? activeCategory : categories[0]?.id || '',
+                    })
+                  }
                 >
                   <Plus size={18} /> {t('admin.menu.addItem')}
                 </PrimaryButton>
@@ -310,15 +334,15 @@ export default function AdminMenu() {
                   icon={<List size={22} />}
                   title={t('admin.menu.categories')}
                   action={
-                    <button type="button" onClick={() => setAddingCategory(true)} className="text-xs font-medium text-[#f0222c] hover:text-[#ff5a63]">
+                    <button type="button" onClick={() => setCategoryForm({})} className="text-xs font-medium text-[#f0222c] hover:text-[#ff5a63]">
                       {t('admin.menu.addCategoryLink')}
                     </button>
                   }
                 />
 
                 <ul className="mt-3 divide-y divide-white/[0.06]">
-                  {categories.map((c) => (
-                    <li key={c.id} className="group flex items-center gap-3 py-3">
+                  {categories.map((c, index) => (
+                    <li key={c.id} className="flex items-center gap-2 py-3">
                       <button
                         type="button"
                         onClick={() => setActiveCategory(c.id)}
@@ -330,10 +354,40 @@ export default function AdminMenu() {
                           <span className="block text-xs text-white/45">{t('admin.menu.itemCount', { count: countIn(c.id) })}</span>
                         </span>
                       </button>
-                      <button type="button" onClick={() => handleDeleteCategory(c)} aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })} className="p-1 text-white/50 transition hover:text-red-400 md:text-white/30 md:opacity-0 md:focus:opacity-100 md:group-hover:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => moveCategory(c, 'up')}
+                        disabled={index === 0}
+                        aria-label={t('admin.menu.moveUpAria', { name: categoryName(c) })}
+                        className="p-1 text-white/55 transition hover:text-white disabled:opacity-25 disabled:hover:text-white/55"
+                      >
+                        <ChevronUp size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveCategory(c, 'down')}
+                        disabled={index === categories.length - 1}
+                        aria-label={t('admin.menu.moveDownAria', { name: categoryName(c) })}
+                        className="p-1 text-white/55 transition hover:text-white disabled:opacity-25 disabled:hover:text-white/55"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryForm(c)}
+                        aria-label={t('admin.menu.editCategoryAria', { name: categoryName(c) })}
+                        className="p-1 text-white/55 transition hover:text-white"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(c)}
+                        aria-label={t('admin.menu.deleteAria', { name: categoryName(c) })}
+                        className="p-1 text-white/55 transition hover:text-red-400"
+                      >
                         <Trash2 size={15} />
                       </button>
-                      <ChevronRight size={16} className="text-white/50 rtl:-scale-x-100" />
                     </li>
                   ))}
                 </ul>
@@ -361,8 +415,8 @@ export default function AdminMenu() {
           onSave={handleSave}
         />
       )}
-      {addingCategory && (
-        <CategoryModal onClose={() => setAddingCategory(false)} onSave={handleAddCategory} />
+      {categoryForm && (
+        <CategoryModal initial={categoryForm} onClose={() => setCategoryForm(null)} onSave={handleSaveCategory} />
       )}
     </div>
   )
@@ -417,9 +471,11 @@ function ItemCard({ item, categoryLabel, badge, saving, onToggle, onEdit, onDele
         <button type="button" onClick={onEdit} aria-label={t('admin.menu.editAria', { name })} className="text-white/55 transition hover:text-white">
           <Pencil size={16} />
         </button>
-        <button type="button" onClick={onDelete} aria-label={t('admin.menu.deleteAria', { name })} className="text-white/55 transition hover:text-red-400">
-          <Trash2 size={16} />
-        </button>
+        {onDelete && (
+          <button type="button" onClick={onDelete} aria-label={t('admin.menu.deleteAria', { name })} className="text-white/55 transition hover:text-red-400">
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -571,10 +627,13 @@ function ItemModal({ initial, categories, onClose, onSave }) {
   )
 }
 
-function CategoryModal({ onClose, onSave }) {
+function CategoryModal({ initial, onClose, onSave }) {
   const { t } = useLanguage()
   const { password } = useAdminAuth()
-  const [name, setName] = useState('')
+  const editingExisting = Boolean(initial.id)
+  const [name, setName] = useState(initial.name || '')
+  // 'keep' only exists when editing; a new category goes first or last.
+  const [position, setPosition] = useState(editingExisting ? 'keep' : 'last')
   const [file, setFile] = useState(null) // the resized picture waiting to be uploaded
   const [preview, setPreview] = useState('')
   const [saving, setSaving] = useState(false)
@@ -609,7 +668,7 @@ function CategoryModal({ onClose, onSave }) {
 
   async function submit(event) {
     event.preventDefault()
-    if (!file) {
+    if (!file && !initial.image) {
       setError(t('admin.menu.categoryImageRequired'))
       return
     }
@@ -617,9 +676,14 @@ function CategoryModal({ onClose, onSave }) {
     setSaving(true)
     setError('')
     try {
-      // Upload the picture first; the category then points to it.
-      const { image } = await adminUploadImage(password, file)
-      await onSave({ name, image })
+      // Upload a new picture first; the category then points to it.
+      const image = file ? (await adminUploadImage(password, file)).image : initial.image
+      await onSave({
+        id: initial.id,
+        name,
+        image,
+        position: position === 'keep' ? undefined : position,
+      })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -627,8 +691,10 @@ function CategoryModal({ onClose, onSave }) {
     }
   }
 
+  const shownPicture = preview || initial.image
+
   return (
-    <Modal title={t('admin.menu.addCategoryTitle')} onClose={onClose}>
+    <Modal title={editingExisting ? t('admin.menu.editCategoryTitle') : t('admin.menu.addCategoryTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <Field label={t('admin.menu.fieldName')}>
           <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder={t('admin.menu.categoryPlaceholder')} />
@@ -648,17 +714,25 @@ function CategoryModal({ onClose, onSave }) {
             onClick={() => fileInput.current?.click()}
             className="flex w-full items-center gap-4 rounded-xl border border-dashed border-white/20 bg-white/[0.03] p-3 text-start transition hover:border-[#f0222c]/60 hover:bg-white/[0.06]"
           >
-            {preview ? (
-              <img src={preview} alt="" className="h-16 w-16 shrink-0 rounded-full bg-white object-cover" />
+            {shownPicture ? (
+              <img src={shownPicture} alt="" className="h-16 w-16 shrink-0 rounded-full bg-white object-cover" />
             ) : (
               <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/50">
                 <ImagePlus size={26} />
               </span>
             )}
             <span className="text-sm text-white/80">
-              {preview ? t('admin.menu.changeImage') : t('admin.menu.chooseImage')}
+              {shownPicture ? t('admin.menu.changeImage') : t('admin.menu.chooseImage')}
             </span>
           </button>
+        </Field>
+
+        <Field label={t('admin.menu.fieldPosition')}>
+          <select className="input" value={position} onChange={(e) => setPosition(e.target.value)}>
+            {editingExisting && <option value="keep">{t('admin.menu.positionKeep')}</option>}
+            <option value="first">{t('admin.menu.positionFirst')}</option>
+            <option value="last">{t('admin.menu.positionLast')}</option>
+          </select>
         </Field>
 
         {error && (
@@ -667,7 +741,9 @@ function CategoryModal({ onClose, onSave }) {
 
         <div className="flex justify-end gap-2 pt-2">
           <GhostButton onClick={onClose}>{t('admin.menu.cancel')}</GhostButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? t('admin.menu.saving') : t('admin.menu.addCategoryBtn')}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>
+            {saving ? t('admin.menu.saving') : editingExisting ? t('admin.menu.save') : t('admin.menu.addCategoryBtn')}
+          </PrimaryButton>
         </div>
       </form>
     </Modal>

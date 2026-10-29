@@ -93,8 +93,9 @@ export default function AdminTables() {
     return () => clearInterval(timer)
   }, [load])
 
-  const floor = useMemo(() => (tables || []).filter((tb) => tb.kind !== 'home'), [tables])
+  const floor = useMemo(() => (tables || []).filter((tb) => tb.kind === 'table'), [tables])
   const homeLink = (tables || []).find((tb) => tb.kind === 'home')
+  const deliveryLink = (tables || []).find((tb) => tb.kind === 'delivery')
 
   const count = (state) => floor.filter((tb) => tb.state === state).length
   const pct = (n) => (floor.length ? Math.round((n / floor.length) * 100) : 0)
@@ -250,6 +251,14 @@ export default function AdminTables() {
                     <span className="h-3 w-3 rounded-full bg-amber-500" />
                     <span className="flex-1 text-sm text-white">{t('common.toHome')}</span>
                     <span className="text-xs text-white/55">{t('admin.tables.inProgress', { count: homeLink.openOrders })}</span>
+                  </div>
+                )}
+
+                {deliveryLink && (
+                  <div className="mt-2 flex items-center gap-3 rounded-xl border border-dashed border-sky-500/30 bg-sky-500/[0.05] px-3 py-3">
+                    <span className="h-3 w-3 rounded-full bg-sky-500" />
+                    <span className="flex-1 text-sm text-white">{t('common.delivery')}</span>
+                    <span className="text-xs text-white/55">{t('admin.tables.inProgress', { count: deliveryLink.openOrders })}</span>
                   </div>
                 )}
               </Card>
@@ -675,9 +684,10 @@ function LinksModal({ tables, onClose }) {
   const [copied, setCopied] = useState('')
 
   const rows = [
-    ...tables.map((tb) => ({ key: tb.id, label: tableLabel(tb.id), path: `/table/${tb.id}` })),
-    // The special link, always last: orders to take home (no table).
+    ...tables.filter((tb) => tb.kind === 'table').map((tb) => ({ key: tb.id, label: tableLabel(tb.id), path: `/table/${tb.id}` })),
+    // The special links, always last: orders to take home (no table), and delivery.
     { key: 'home', label: 'ToHomeOrder', path: '/ToHomeOrder', special: true },
+    { key: 'delivery', label: 'Delivery', path: '/delivery', special: true, note: 'admin.tables.deliveryOrders' },
   ]
 
   async function copy(row) {
@@ -696,13 +706,13 @@ function LinksModal({ tables, onClose }) {
       <ul className="divide-y divide-white/[0.06]">
         {rows.map((row) => (
           <li key={row.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:flex-nowrap">
-            <span className={`w-[110px] shrink-0 rounded-lg px-3 py-1 text-center text-xs font-semibold text-white ${row.special ? 'bg-[#8a4b0f]' : 'bg-[#5a0b10]'}`}>
+            <span className={`w-[110px] shrink-0 rounded-lg px-3 py-1 text-center text-xs font-semibold text-white ${row.key === 'delivery' ? 'bg-[#0b3f8f]' : row.special ? 'bg-[#8a4b0f]' : 'bg-[#5a0b10]'}`}>
               {row.label}
             </span>
             <code className="order-last min-w-0 basis-full truncate text-xs text-white/55 sm:order-none sm:flex-1 sm:basis-auto">
               {window.location.origin}{row.path}
             </code>
-            {row.special && <span className="hidden text-[11px] text-amber-400/80 sm:block">{t('admin.tables.noTableOrders')}</span>}
+            {row.special && <span className="hidden text-[11px] text-amber-400/80 sm:block">{t(row.note || 'admin.tables.noTableOrders')}</span>}
             <button type="button" onClick={() => copy(row)} className="ms-auto flex items-center gap-1.5 sm:ms-0 rounded-lg bg-white/[0.07] px-3 py-1.5 text-xs text-white transition hover:bg-white/[0.14]">
               <Copy size={13} /> {copied === row.key ? t('admin.tables.copied') : t('admin.tables.copy')}
             </button>

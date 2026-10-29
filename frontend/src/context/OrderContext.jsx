@@ -17,7 +17,7 @@ import {
   cancelOrder as cancelOrderRequest,
 } from '../services/api'
 
-import { HOME_TABLE_ID, tableIdFromPath } from '../data/tables'
+import { isOpenLink, tableIdFromPath } from '../data/tables'
 import { useCart } from './CartContext'
 import { rememberOrder, readHistory } from '../utils/orderHistory'
 
@@ -116,7 +116,7 @@ export function OrderProvider({ children }) {
   // so OrderContext can safely access the cart.
   const cart = useCart()
 
-  // Which table is this phone looking at? (/table/:tableId or /ToHomeOrder)
+  // Which table is this phone looking at? (/table/:tableId, /ToHomeOrder or /delivery)
   const { pathname } = useLocation()
   const tableId = tableIdFromPath(pathname)
 
@@ -312,7 +312,9 @@ export function OrderProvider({ children }) {
 
     let cancelled = false
     const isCancelled = () => cancelled
-    const isHome = tableId === HOME_TABLE_ID
+    // To Home / Delivery: the server cannot tell which order is this phone's,
+    // so the phone finds it again by the order id it saved.
+    const isHome = isOpenLink(tableId)
 
     async function restore() {
       try {
@@ -415,7 +417,7 @@ export function OrderProvider({ children }) {
   // -------------------------------------------------------------------------
 
   const placeOrder = useCallback(
-    async (tableId, lines, note = '') => {
+    async (tableId, lines, note = '', details = {}) => {
       if (!lines || lines.length === 0) {
         return null
       }
@@ -433,6 +435,9 @@ export function OrderProvider({ children }) {
         tableId,
         items,
         note,
+        // delivery link only: { phone, address }
+        phone: details.phone,
+        address: details.address,
       })
 
       clearTimers()

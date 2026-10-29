@@ -12,7 +12,8 @@ const router = Router()
 //                     has an order in progress there (the dashboard shows such
 //                     a table as "occupied", so the guests keep their table)
 export async function unavailableReason(db, row) {
-  if (row.kind === 'home') return null
+  // The home and delivery links have no table that could be cleaned.
+  if (row.kind !== 'table') return null
   if (row.status === 'out_of_service') return 'out_of_service'
   if (row.status === 'cleaning') {
     const open = await db.query(

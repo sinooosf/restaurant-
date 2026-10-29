@@ -5,7 +5,7 @@ import { OrderProvider } from './context/OrderContext'
 import { WaiterProvider } from './context/WaiterContext'
 import { CATEGORIES, MENU_ITEMS, loadMenuData } from './data/menu'
 import { preloadImages } from './utils/preloadImages'
-import { HOME_PATH, loadTables } from './data/tables'
+import { DELIVERY_PATH, HOME_PATH, loadTables } from './data/tables'
 import { loadChatbotFaqs } from './components/chatbot/chatbotResponses'
 import IntroSplash from './components/layout/IntroSplash'
 import LanguageChooser from './components/layout/LanguageChooser'
@@ -70,6 +70,8 @@ function CustomerShell() {
               <Route path="/table/:tableId" element={<TablePage />} />
               {/* The special link for customers ordering without a table */}
               <Route path={HOME_PATH} element={<TablePage />} />
+              {/* The delivery link: orders with a phone number and an address */}
+              <Route path={DELIVERY_PATH} element={<TablePage />} />
               <Route path="*" element={<TableNotFound />} />
             </Routes>
             </WaiterProvider>

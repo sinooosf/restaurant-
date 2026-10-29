@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { serializeOrder } from '../serialize.js'
-import { HOME_TABLE_ID } from '../migrate.js'
+import { isOpenLink } from '../links.js'
 import { placeOrder } from '../placeOrder.js'
 import { notifyNewOrder } from '../push.js'
 import { MAX_ORDER_NOTE, cleanNote, normalizeTableId, numericId, parseOrderLines } from '../validate.js'
@@ -36,10 +36,10 @@ router.post('/', async (req, res, next) => {
 // progress, so scanning the QR code again brings it back.
 router.get('/table/:tableId/active', async (req, res, next) => {
   try {
-    // "To Home" orders belong to one customer each — two people ordering
+    // "To Home" and "Delivery" orders belong to one customer each — two people ordering
     // through that link at the same time must never see each other's order.
     // Their own phone remembers its order id instead.
-    if (req.params.tableId === HOME_TABLE_ID || normalizeTableId(req.params.tableId) === null) return res.json(null)
+    if (isOpenLink(req.params.tableId) || normalizeTableId(req.params.tableId) === null) return res.json(null)
 
     const result = await pool.query(
       `SELECT id FROM orders

@@ -2,6 +2,7 @@
 // Plural keys end in _one / _two / _few / _many / _other (see translate.js).
 export default {
   en: {
+    'admin.tables.deliveryOrders': 'asks phone + address',
     'admin.tables.title': 'Tables',
     'admin.tables.subtitle': 'Manage your restaurant tables and their current status.',
     'admin.tables.state.available': 'Available',
@@ -45,6 +46,7 @@ export default {
     'admin.tables.open': 'Open {label}',
   },
   fr: {
+    'admin.tables.deliveryOrders': 'demande téléphone + adresse',
     'admin.tables.title': 'Tables',
     'admin.tables.subtitle': 'Gérez les tables du restaurant et leur statut actuel.',
     'admin.tables.state.available': 'Libre',
@@ -88,6 +90,7 @@ export default {
     'admin.tables.open': 'Ouvrir {label}',
   },
   ar: {
+    'admin.tables.deliveryOrders': 'يطلب الهاتف والعنوان',
     'admin.tables.title': 'الطاولات',
     'admin.tables.subtitle': 'أدِر طاولات المطعم وحالتها الحالية.',
     'admin.tables.state.available': 'متاحة',

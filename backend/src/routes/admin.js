@@ -1,7 +1,7 @@
 import express, { Router } from 'express'
 import { pool } from '../db.js'
 import { requireAdmin, checkAdminPassword, sendAuthError } from '../middleware/auth.js'
-import { HOME_TABLE_ID } from '../migrate.js'
+import { DELIVERY_TABLE_ID, HOME_TABLE_ID } from '../links.js'
 import { TZ, dayStartSql, TABLE_ORDER_SQL } from '../time.js'
 import { daysBetween, resolveRange } from '../reportRange.js'
 import { placeOrder } from '../placeOrder.js'
@@ -99,32 +99,134 @@ async function dropUnusedUpload(imagePath) {
   )
 }
 
+// Where a category sits in the customer's menu: 'first' | 'last', or one step
+// 'up' | 'down'. Rewrites sort_order 0..n-1 so there are never ties.
+const CATEGORY_POSITIONS = ['first', 'last', 'up', 'down']
+
+async function writeCategoryOrder(db, ids) {
+  await db.query(
+    `UPDATE categories c SET sort_order = x.n - 1
+       FROM unnest($1::text[]) WITH ORDINALITY AS x(id, n)
+      WHERE c.id = x.id`,
+    [ids],
+  )
+}
+
+async function categoryIdsInOrder(db) {
+  const { rows } = await db.query('SELECT id FROM categories ORDER BY sort_order ASC, id ASC')
+  return rows.map((r) => r.id)
+}
+
+async function moveCategory(db, id, position) {
+  const ids = await categoryIdsInOrder(db)
+  const from = ids.indexOf(id)
+  if (from === -1) return false
+
+  let to = from
+  if (position === 'first') to = 0
+  else if (position === 'last') to = ids.length - 1
+  else if (position === 'up') to = Math.max(0, from - 1)
+  else if (position === 'down') to = Math.min(ids.length - 1, from + 1)
+
+  ids.splice(from, 1)
+  ids.splice(to, 0, id)
+  await writeCategoryOrder(db, ids)
+  return true
+}
+
+const checkCategoryText = (body) => {
+  const { name, image, description, position } = body
+  if (name !== undefined && !isText(name, 80)) return 'The name must be 1–80 characters.'
+  if (image !== undefined && !isText(image, 500)) return 'The picture is not valid.'
+  if (description !== undefined && (typeof description !== 'string' || description.length > 200 || description.includes('\u0000'))) {
+    return 'The description must be text of at most 200 characters.'
+  }
+  if (position !== undefined && !CATEGORY_POSITIONS.includes(position)) return 'position must be first, last, up or down.'
+  return null
+}
+
 router.post('/categories', async (req, res, next) => {
+  const client = await pool.connect()
   try {
-    const { id, name, image, description } = req.body || {}
-    if (!isText(name, 80) || (id !== undefined && !isText(id, 80)) || (image !== undefined && !isText(image, 500)) || (description !== undefined && typeof description !== 'string')) {
+    const body = req.body && typeof req.body === 'object' ? req.body : {}
+    const { id, name, image, description, position } = body
+    if (!isText(name, 80) || (id !== undefined && !isText(id, 80))) {
       return res.status(400).json({ error: 'A category needs a name (up to 80 characters).' })
     }
-    const slug = String(id || name || '')
+    const problem = checkCategoryText(body)
+    if (problem) return res.status(400).json({ error: problem })
+
+    let slug = String(id || name || '')
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
-
-    if (!slug || !name?.trim()) {
-      return res.status(400).json({ error: 'A category needs a name.' })
+    if (!slug) {
+      // A name with no latin letters (e.g. Arabic): give it a generated id.
+      if (!/[\p{L}\p{N}]/u.test(String(name))) return res.status(400).json({ error: 'A category needs a name.' })
+      slug = `category-${Math.random().toString(16).slice(2, 8)}`
     }
 
-    const next_sort = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM categories')
-    const result = await pool.query(
+    await client.query('BEGIN')
+    const next_sort = await client.query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM categories')
+    const result = await client.query(
       `INSERT INTO categories (id, name, image, description, sort_order)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [slug, name.trim(), image || '/logo.png', description?.trim() || '', next_sort.rows[0].n],
     )
-    res.status(201).json(serializeCategory(result.rows[0]))
+    if (position === 'first') await moveCategory(client, slug, 'first')
+    const fresh = await client.query('SELECT * FROM categories WHERE id = $1', [slug])
+    await client.query('COMMIT')
+    res.status(201).json(serializeCategory(fresh.rows[0]))
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
     if (err.code === '23505') return res.status(409).json({ error: 'That category already exists.' })
     next(err)
+  } finally {
+    client.release()
+  }
+})
+
+// Edit a category: any of name, image, description, and its position in the
+// menu ('first' | 'last' | 'up' | 'down'). Only what is sent changes.
+router.put('/categories/:id', async (req, res, next) => {
+  const client = await pool.connect()
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {}
+    const problem = checkCategoryText(body)
+    if (problem) return res.status(400).json({ error: problem })
+    const { name, image, description, position } = body
+
+    await client.query('BEGIN')
+    const before = await client.query('SELECT * FROM categories WHERE id = $1 FOR UPDATE', [req.params.id])
+    if (before.rows.length === 0) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(404).json({ error: 'Category not found.' })
+    }
+
+    await client.query(
+      `UPDATE categories SET
+         name        = COALESCE($1, name),
+         image       = COALESCE($2, image),
+         description = COALESCE($3, description)
+       WHERE id = $4`,
+      [name === undefined ? null : name.trim(), image ?? null, description === undefined ? null : description.trim(), req.params.id],
+    )
+    if (position !== undefined) await moveCategory(client, req.params.id, position)
+
+    const fresh = await client.query('SELECT * FROM categories WHERE id = $1', [req.params.id])
+    await client.query('COMMIT')
+
+    // The old uploaded picture (if any) is no longer used: free the space.
+    if (image !== undefined && before.rows[0].image !== fresh.rows[0].image) {
+      await dropUnusedUpload(before.rows[0].image).catch(() => {})
+    }
+    res.json(serializeCategory(fresh.rows[0]))
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    next(err)
+  } finally {
+    client.release()
   }
 })
 
@@ -149,6 +251,8 @@ router.delete('/categories/:id', async (req, res, next) => {
       await client.query('ROLLBACK').catch(() => {})
       return res.status(404).json({ error: 'Category not found.' })
     }
+    // Close the gap in the order (0..n-1).
+    await writeCategoryOrder(client, await categoryIdsInOrder(client))
     await client.query('COMMIT')
 
     // Free the space of the uploaded pictures (category + its dishes) now unused.
@@ -257,7 +361,7 @@ router.delete('/menu-items/:id', async (req, res, next) => {
 const OPEN_STATUSES = ['preparing', 'almost', 'ready']
 
 function tableState(row, hasOrder) {
-  if (row.kind === 'home') return 'home'
+  if (row.kind !== 'table') return row.kind // 'home' | 'delivery' links
   if (row.status === 'out_of_service') return 'out_of_service'
   if (hasOrder) return 'occupied'
   if (row.status === 'cleaning') return 'cleaning'
@@ -326,6 +430,9 @@ router.post('/tables', async (req, res, next) => {
     if (cleanId.toLowerCase() === HOME_TABLE_ID) {
       return res.status(400).json({ error: '"home" is reserved for the ToHomeOrder link.' })
     }
+    if (cleanId.toLowerCase() === DELIVERY_TABLE_ID) {
+      return res.status(400).json({ error: '"delivery" is reserved for the delivery link.' })
+    }
 
     const seatCount = Math.min(Math.max(Math.trunc(Number(seats)) || 4, 1), 20)
 
@@ -382,6 +489,9 @@ router.delete('/tables/:id', async (req, res, next) => {
   try {
     if (req.params.id === HOME_TABLE_ID) {
       return res.status(400).json({ error: 'The ToHomeOrder link is built in and cannot be removed.' })
+    }
+    if (req.params.id === DELIVERY_TABLE_ID) {
+      return res.status(400).json({ error: 'The delivery link is built in and cannot be removed.' })
     }
 
     const busy = await pool.query(
@@ -687,6 +797,10 @@ router.patch('/orders/:id/move', numericId, async (req, res, next) => {
       await client.query('ROLLBACK').catch(() => {})
       return res.status(404).json({ error: 'Order not found.' })
     }
+    if (order.table_id === DELIVERY_TABLE_ID) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(409).json({ error: 'A delivery order cannot be moved to a table.' })
+    }
     if (!OPEN_STATUSES.includes(order.status)) {
       await client.query('ROLLBACK').catch(() => {})
       return res.status(409).json({ error: 'Only an order in progress can be moved.' })
@@ -741,6 +855,10 @@ router.post('/orders/merge', async (req, res, next) => {
     if (!from || !into) {
       await client.query('ROLLBACK').catch(() => {})
       return res.status(404).json({ error: 'Order not found.' })
+    }
+    if (from.table_id === DELIVERY_TABLE_ID || into.table_id === DELIVERY_TABLE_ID) {
+      await client.query('ROLLBACK').catch(() => {})
+      return res.status(409).json({ error: 'Delivery orders cannot be merged: each one has its own address.' })
     }
     if (!OPEN_STATUSES.includes(from.status) || !OPEN_STATUSES.includes(into.status)) {
       await client.query('ROLLBACK').catch(() => {})

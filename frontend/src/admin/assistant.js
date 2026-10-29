@@ -85,7 +85,7 @@ function makeData(password, lang) {
 }
 
 const openOrders = async (d) => (await d.orders()).orders.filter((o) => OPEN.includes(o.status))
-const floorTables = async (d) => (await d.tables()).filter((t) => t.kind !== 'home')
+const floorTables = async (d) => (await d.tables()).filter((t) => t.kind === 'table')
 
 /* ------------------------------ answers ------------------------------ */
 

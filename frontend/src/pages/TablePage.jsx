@@ -6,7 +6,8 @@ import {
   getItemsForCategory,
 } from '../data/menu'
 import { useTableId } from '../hooks/useTableId'
-import { HOME_TABLE_ID, tableLabel } from '../data/tables'
+import { DELIVERY_TABLE_ID, HOME_TABLE_ID, tableLabel } from '../data/tables'
+import { MAX_ADDRESS, deliveryProblem } from '../utils/deliveryDetails'
 import { useCart } from '../context/CartContext'
 import { useOrder } from '../context/OrderContext'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -32,6 +33,8 @@ function friendlyOrderError(message, t) {
   if (/not available right now/i.test(text)) return t('err.unavailable')
   if (/already (finished|started)|no longer/i.test(text)) return t('err.finished')
   if (/being cleaned|out of service/i.test(text)) return t('err.tableClosed')
+  if (/phone/i.test(text)) return t('delivery.phoneInvalid')
+  if (/address/i.test(text)) return t('delivery.addressRequired')
   if (/empty order|nothing to add/i.test(text)) return t('err.empty')
   return t('err.generic')
 }
@@ -40,9 +43,10 @@ export default function TablePage() {
   const { tableId, status: tableStatus, retry: retryTable, closed: tableClosed } = useTableId()
   const { t, formatMoney, itemName } = useLanguage()
   const isHome = tableId === HOME_TABLE_ID
+  const isDelivery = tableId === DELIVERY_TABLE_ID
 
   const [activeCategoryId, setActiveCategoryId] = useState(
-    CATEGORIES[0].id
+    CATEGORIES[0]?.id ?? ''
   )
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -61,6 +65,13 @@ export default function TablePage() {
   // The customer's optional note for the kitchen ("no onions"), typed in the
   // confirmation box and sent with the order.
   const [orderNote, setOrderNote] = useState('')
+
+  // Delivery link only: the phone number and the address (written like a
+  // note, several lines are fine). Both are required for the first order.
+  const [deliveryPhone, setDeliveryPhone] = useState('')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  // 'phone' | 'address' | null — which delivery field needs fixing.
+  const [detailsProblem, setDetailsProblem] = useState(null)
 
   // Height of the cart bar at the bottom — the menu keeps that much room
   // below its last row (see MenuSection).
@@ -176,6 +187,7 @@ export default function TablePage() {
     }
 
     setOrderError('')
+    setDetailsProblem(null)
     setConfirmOrderOpen(true)
   }
 
@@ -183,6 +195,7 @@ export default function TablePage() {
   // Simply close the confirmation and keep shopping.
   function handleContinueShopping() {
     setOrderError('')
+    setDetailsProblem(null)
     setConfirmOrderOpen(false)
   }
 
@@ -193,19 +206,38 @@ export default function TablePage() {
       return
     }
 
+    // A delivery order cannot be sent without a phone number and an address
+    // (adding dishes to an order that is already placed needs neither).
+    const needsDetails = isDelivery && !order.order
+    if (needsDetails) {
+      const problem = deliveryProblem({ phone: deliveryPhone, address: deliveryAddress })
+      if (problem) {
+        setDetailsProblem(problem)
+        return
+      }
+    }
+
     setPlacing(true)
     setOrderError('')
+    setDetailsProblem(null)
 
     try {
       if (order.order) {
         // Already ordering: add these dishes to the SAME order.
         await order.addToOrder(cart.lines, orderNote)
       } else {
-        await order.placeOrder(tableId, cart.lines, orderNote)
+        await order.placeOrder(
+          tableId,
+          cart.lines,
+          orderNote,
+          needsDetails ? { phone: deliveryPhone.trim(), address: deliveryAddress.trim() } : {}
+        )
       }
 
       // Both of them open the tracking screen automatically.
       setOrderNote('')
+      setDeliveryPhone('')
+      setDeliveryAddress('')
       setConfirmOrderOpen(false)
       setCartOpen(false)
     } catch (error) {
@@ -325,7 +357,7 @@ export default function TablePage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full max-w-sm rounded-3xl border border-line bg-panel p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
+            className="max-h-[94%] w-full max-w-sm overflow-y-auto rounded-3xl border border-line bg-panel p-5 shadow-[0_20px_60px_rgba(0,0,0,0.65)]"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <h2 className="font-display text-xl text-cream">
@@ -337,9 +369,11 @@ export default function TablePage() {
             <p className="mt-2 text-sm leading-relaxed text-cream/55">
               {addingToOrder
                 ? t('confirm.bodyAdd')
-                : isHome
-                  ? t('confirm.bodyHome')
-                  : t('confirm.bodyTable')}
+                : isDelivery
+                  ? t('confirm.bodyDelivery')
+                  : isHome
+                    ? t('confirm.bodyHome')
+                    : t('confirm.bodyTable')}
             </p>
 
             {/* Current order summary */}
@@ -371,6 +405,59 @@ export default function TablePage() {
                 ))}
               </div>
             </div>
+
+            {/* Delivery link: where to bring it. The address is written like a
+                note (a text box), the phone number is a short field. */}
+            {isDelivery && !addingToOrder && (
+              <div className="mt-3 space-y-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-cream/60">{t('delivery.phoneLabel')} *</span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    dir="ltr"
+                    value={deliveryPhone}
+                    onChange={(event) => {
+                      setDeliveryPhone(event.target.value.slice(0, 25))
+                      if (detailsProblem === 'phone') setDetailsProblem(null)
+                    }}
+                    maxLength={25}
+                    disabled={placing}
+                    aria-invalid={detailsProblem === 'phone'}
+                    placeholder={t('delivery.phonePlaceholder')}
+                    className={`mt-1 w-full rounded-xl border bg-panel-light px-3 py-2 text-start text-sm text-cream placeholder:text-cream/30 focus:outline-none ${
+                      detailsProblem === 'phone' ? 'border-red-400' : 'border-line focus:border-maroon-bright'
+                    }`}
+                  />
+                  {detailsProblem === 'phone' && (
+                    <span role="alert" className="mt-1 block text-xs text-red-300">{t('delivery.phoneInvalid')}</span>
+                  )}
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-semibold text-cream/60">{t('delivery.addressLabel')} *</span>
+                  <textarea
+                    value={deliveryAddress}
+                    onChange={(event) => {
+                      setDeliveryAddress(event.target.value.slice(0, MAX_ADDRESS))
+                      if (detailsProblem === 'address') setDetailsProblem(null)
+                    }}
+                    maxLength={MAX_ADDRESS}
+                    rows={3}
+                    disabled={placing}
+                    aria-invalid={detailsProblem === 'address'}
+                    placeholder={t('delivery.addressPlaceholder')}
+                    className={`mt-1 w-full resize-none rounded-xl border bg-panel-light px-3 py-2 text-sm text-cream placeholder:text-cream/30 focus:outline-none ${
+                      detailsProblem === 'address' ? 'border-red-400' : 'border-line focus:border-maroon-bright'
+                    }`}
+                  />
+                  {detailsProblem === 'address' && (
+                    <span role="alert" className="mt-1 block text-xs text-red-300">{t('delivery.addressRequired')}</span>
+                  )}
+                </label>
+              </div>
+            )}
 
             {/* Note for the kitchen */}
             <label className="mt-3 block">

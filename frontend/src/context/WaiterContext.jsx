@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { callWaiter, getWaiterCall } from '../services/api'
-import { HOME_TABLE_ID, tableIdFromPath } from '../data/tables'
+import { isOpenLink, tableIdFromPath } from '../data/tables'
 
 // ---------------------------------------------------------------------------
 // The "Call waiter" button's brain.
@@ -45,8 +45,8 @@ function save(tableId, id) {
 export function WaiterProvider({ children }) {
   const { pathname } = useLocation()
   const tableId = tableIdFromPath(pathname)
-  // The "To Home" link has no table, so nobody to call.
-  const available = Boolean(tableId) && tableId !== HOME_TABLE_ID
+  // The "To Home" and "Delivery" links have no table, so nobody to call.
+  const available = Boolean(tableId) && !isOpenLink(tableId)
 
   const [status, setStatus] = useState('idle')
   const callId = useRef(null)

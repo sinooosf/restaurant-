@@ -62,7 +62,8 @@ export async function sendPush(payload) {
   }
 }
 
-const tableName = (id) => (String(id) === 'home' ? 'To Home' : `Table ${id}`)
+const tableName = (id) =>
+  String(id) === 'home' ? 'To Home' : String(id) === 'delivery' ? 'Delivery' : `Table ${id}`
 
 export function notifyNewOrder(order) {
   const items = (order.items || []).slice(0, 3).map((i) => `${i.quantity}x ${i.name}`).join(', ')

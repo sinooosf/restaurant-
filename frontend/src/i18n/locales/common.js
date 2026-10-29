@@ -2,6 +2,7 @@ export default {
   en: {
     'common.currency': 'DH',
     'common.toHome': 'To Home',
+    'common.delivery': 'Delivery',
     'common.table': 'Table {id}',
     'common.items_one': '{count} item',
     'common.items_other': '{count} items',
@@ -11,6 +12,7 @@ export default {
   fr: {
     'common.currency': 'DH',
     'common.toHome': 'À emporter',
+    'common.delivery': 'Livraison',
     'common.table': 'Table {id}',
     'common.items_one': '{count} article',
     'common.items_other': '{count} articles',
@@ -20,6 +22,7 @@ export default {
   ar: {
     'common.currency': 'دج',
     'common.toHome': 'للمنزل',
+    'common.delivery': 'توصيل',
     'common.table': 'طاولة {id}',
     'common.items_one': 'صنف واحد',
     'common.items_two': 'صنفان',

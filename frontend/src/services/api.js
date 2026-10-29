@@ -92,13 +92,16 @@ export function fetchChatbotFaqs() {
   return request('/chatbot/faqs')
 }
 
-export function submitOrder({ tableId, items, note }) {
+export function submitOrder({ tableId, items, note, phone, address }) {
   // Only id + quantity are sent on purpose — the server looks up the real
   // name and price itself rather than trusting what the browser sends.
   // `note` is the customer's free text for the kitchen (optional).
   const trimmedItems = items.map((item) => ({ id: item.id, quantity: item.quantity }))
   const body = { tableId, items: trimmedItems }
   if (note && note.trim()) body.note = note.trim()
+  // `phone` and `address` are for the delivery link (required there).
+  if (phone && phone.trim()) body.phone = phone.trim()
+  if (address && address.trim()) body.address = address.trim()
   return request('/orders', { method: 'POST', body })
 }
 
@@ -195,7 +198,15 @@ export function adminUpdateTable(password, id, changes) {
 }
 
 export async function adminCreateCategory(password, category) {
-  return withImage(await request('/admin/categories', { method: 'POST', body: category, password }))
+  const body = category.image === undefined ? category : { ...category, image: rawImage(category.image) }
+  return withImage(await request('/admin/categories', { method: 'POST', body, password }))
+}
+
+// Change a category: any of { name, image, description, position }, where
+// position is 'first' | 'last' | 'up' | 'down' (its place in the customer menu).
+export async function adminUpdateCategory(password, id, changes) {
+  const body = changes.image === undefined ? changes : { ...changes, image: rawImage(changes.image) }
+  return withImage(await request(`/admin/categories/${encodeURIComponent(id)}`, { method: 'PUT', body, password }))
 }
 
 export function adminDeleteCategory(password, id, { withDishes = false } = {}) {
@@ -252,9 +263,11 @@ export function adminFetchReport(password, { range = 'week', from, to } = {}) {
 
 // A waiter places an order from the dashboard (guest without a phone).
 // Only id + quantity are sent: the server uses its own names and prices.
-export function adminCreateOrder(password, { tableId, items, note }) {
+export function adminCreateOrder(password, { tableId, items, note, phone, address }) {
   const body = { tableId, items: items.map((item) => ({ id: item.id, quantity: item.quantity })) }
   if (note && note.trim()) body.note = note.trim()
+  if (phone && phone.trim()) body.phone = phone.trim()
+  if (address && address.trim()) body.address = address.trim()
   return request('/admin/orders', { method: 'POST', body, password })
 }
 

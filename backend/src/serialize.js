@@ -1,6 +1,7 @@
 // The database uses snake_case columns; the frontend (unchanged from the
 // mock-data version) expects camelCase fields. These helpers are the only
 // place that translation happens.
+import { orderTypeOf } from './links.js'
 
 export function serializeCategory(row) {
   return {
@@ -50,6 +51,11 @@ export function serializeOrder(row, items) {
     status: row.status,
     total: row.total,
     note: row.note || '',
+    // 'table' | 'home' | 'delivery'. Delivery orders also carry the customer's
+    // phone number and address (empty text for every other kind of order).
+    type: orderTypeOf(row.table_id),
+    phone: row.phone || '',
+    address: row.address || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
     items: items.map((line) => ({

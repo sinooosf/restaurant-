@@ -101,6 +101,7 @@ afterEach(() => {
 
 describe.each([
   ['the To Home link', '/ToHomeOrder', 'home'],
+  ['the delivery link', '/delivery', 'delivery'],
   ['a table link', '/table/3', '3'],
 ])('%s', (_name, path, tableId) => {
   it.each(['preparing', 'almost', 'ready', 'completed'])(

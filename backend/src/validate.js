@@ -49,6 +49,32 @@ export function cleanNote(value, max) {
 export const MAX_ORDER_NOTE = 300
 export const MAX_DISH_NOTE = 120
 
+export const MAX_ADDRESS = 300
+
+// A delivery phone number: 6–15 digits, optionally starting with "+", and
+// spaces, dots, dashes or brackets between them ("0555 12 34 56",
+// "+213 555 123 456"). Returns { value } (tidied) or { error }.
+export function cleanPhone(value) {
+  if (typeof value !== 'string' || value.includes('\u0000')) return { error: 'A phone number is required for delivery.' }
+  const text = value.trim().replace(/\s+/g, ' ')
+  const digits = text.replace(/[\s.\-()]/g, '')
+  if (text.length > 25 || !/^\+?\d{6,15}$/.test(digits)) {
+    return { error: 'Please enter a valid phone number for delivery.' }
+  }
+  return { value: text }
+}
+
+// A delivery address, written like a note (several lines are fine).
+// Returns { value } (trimmed) or { error }.
+export function cleanAddress(value) {
+  if (typeof value !== 'string' || value.includes('\u0000') || value.trim().length === 0) {
+    return { error: 'A delivery address is required.' }
+  }
+  const text = value.trim()
+  if (text.length > MAX_ADDRESS) return { error: `The address can be at most ${MAX_ADDRESS} characters.` }
+  return { value: text }
+}
+
 // Turns the `items` array of an order into clean lines, or an error message.
 //   [{ id, quantity }]  ->  { lines } | { error }
 export function parseOrderLines(items) {

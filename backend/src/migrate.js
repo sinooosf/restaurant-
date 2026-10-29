@@ -9,8 +9,9 @@
 // ---------------------------------------------------------------------------
 import { pool } from './db.js'
 import { TZ } from './time.js'
+import { HOME_TABLE_ID, DELIVERY_TABLE_ID } from './links.js'
 
-export const HOME_TABLE_ID = 'home'
+export { HOME_TABLE_ID, DELIVERY_TABLE_ID }
 
 export async function ensureSchema() {
   // Newer table columns
@@ -37,6 +38,21 @@ export async function ensureSchema() {
      ON CONFLICT (id) DO UPDATE SET kind = 'home', label = 'To Home'`,
     [HOME_TABLE_ID],
   )
+
+  // The special "delivery" link: the customer orders normally, then gives a
+  // phone number and an address when confirming.
+  await pool.query(
+    `INSERT INTO restaurant_tables (id, label, kind, seats)
+     VALUES ($1, 'Delivery', 'delivery', 0)
+     ON CONFLICT (id) DO UPDATE SET kind = 'delivery', label = 'Delivery'`,
+    [DELIVERY_TABLE_ID],
+  )
+
+  // Delivery orders carry the customer's phone number and address.
+  await pool.query(`
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone    TEXT NOT NULL DEFAULT '';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS address  TEXT NOT NULL DEFAULT '';
+  `)
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS uploads (

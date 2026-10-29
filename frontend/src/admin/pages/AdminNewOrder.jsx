@@ -7,6 +7,7 @@ import { useAdminAuth } from '../AdminAuthContext'
 import { useAdminShell } from '../AdminShellContext'
 import { adminCreateOrder, adminFetchCategories, adminFetchMenuItems, adminFetchTables } from '../../services/api'
 import FadeImage from '../../components/ui/FadeImage'
+import { MAX_ADDRESS, isValidAddress, isValidPhone } from '../../utils/deliveryDetails'
 import { Card, CardTitle, ErrorBanner, GhostButton, PageTop, PrimaryButton, Spinner } from '../components/ui'
 
 const MAX_NOTE = 300
@@ -33,6 +34,9 @@ export default function AdminNewOrder() {
   const [lines, setLines] = useState({}) // itemId -> quantity
   const [tableId, setTableId] = useState('')
   const [note, setNote] = useState('')
+  // Only for the Delivery link: where to bring it and who to call.
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(null) // { number, table }
 
@@ -108,13 +112,19 @@ export default function AdminNewOrder() {
     return { id: table.id, label, closed }
   })
 
+  const isDelivery = tableId === 'delivery'
+
   const problem = !tableId
     ? t('admin.newOrder.needTable')
     : !count
       ? t('admin.newOrder.needDish')
       : gone
         ? t('admin.newOrder.gone', { name: itemName(gone.item) })
-        : ''
+        : isDelivery && !isValidPhone(phone)
+          ? t('admin.newOrder.needPhone')
+          : isDelivery && !isValidAddress(address)
+            ? t('admin.newOrder.needAddress')
+            : ''
 
   async function place() {
     if (problem || sending) return
@@ -125,10 +135,14 @@ export default function AdminNewOrder() {
         tableId,
         items: orderLines.map((line) => ({ id: line.item.id, quantity: line.quantity })),
         note,
+        phone: isDelivery ? phone : undefined,
+        address: isDelivery ? address : undefined,
       })
       setSent({ number: result.number ?? result.id, table: tableLabel(tableId) })
       setLines({})
       setNote('')
+      setPhone('')
+      setAddress('')
       setTableId('')
       setSheetOpen(false)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -152,6 +166,34 @@ export default function AdminNewOrder() {
           ))}
         </select>
       </label>
+
+      {isDelivery && (
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">{t('admin.newOrder.phone')} *</span>
+            <input
+              className="input"
+              type="tel"
+              inputMode="tel"
+              dir="ltr"
+              maxLength={25}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder={t('admin.newOrder.phonePlaceholder')}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">{t('admin.newOrder.address')} *</span>
+            <textarea
+              className="input min-h-[72px]"
+              maxLength={MAX_ADDRESS}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder={t('admin.newOrder.addressPlaceholder')}
+            />
+          </label>
+        </div>
+      )}
 
       <ul className="mt-4 space-y-2">
         {orderLines.length === 0 && <li className="py-4 text-center text-sm text-white/45">{t('admin.newOrder.empty')}</li>}

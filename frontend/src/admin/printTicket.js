@@ -70,6 +70,16 @@ export function printKitchenTicket(order, { t, lang = 'en' }) {
       add(row, 'span', itemName(item, lang))
     }
 
+    // Delivery: where it goes and who to call (printed big, the driver needs it).
+    if (order.type === 'delivery') {
+      add(body, 'hr')
+      const box = add(body, 'div', undefined, 'note')
+      add(box, 'div', t('admin.orders.ticket.address'), 'note-label')
+      add(box, 'div', order.address || '', 'note-text')
+      add(box, 'div', t('admin.orders.ticket.phone'), 'note-label').style.marginTop = '2mm'
+      add(box, 'div', order.phone || '', 'note-text').dir = 'ltr'
+    }
+
     if (order.note) {
       add(body, 'hr')
       const box = add(body, 'div', undefined, 'note')

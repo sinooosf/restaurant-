@@ -148,12 +148,11 @@ export function StatusBadge({ status, className = '' }) {
 
 export function TablePill({ tableId }) {
   const { tableLabel } = useLanguage()
-  const isHome = String(tableId) === 'home'
+  // To Home is orange, Delivery blue, real tables red.
+  const color = String(tableId) === 'home' ? 'bg-[#8a4b0f]' : String(tableId) === 'delivery' ? 'bg-[#0b3f8f]' : 'bg-[#5a0b10]'
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-lg px-3 py-1 text-xs font-medium text-white ${
-        isHome ? 'bg-[#8a4b0f]' : 'bg-[#5a0b10]'
-      }`}
+      className={`inline-flex items-center whitespace-nowrap rounded-lg px-3 py-1 text-xs font-medium text-white ${color}`}
     >
       {tableLabel(tableId)}
     </span>
