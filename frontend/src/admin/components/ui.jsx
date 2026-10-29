@@ -1,10 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsDesktop } from '../useIsDesktop'
-import { Bell, Calendar, ChevronDown, Globe } from 'lucide-react'
+import { Bell, Calendar, ChevronDown, Globe, StickyNote, Truck } from 'lucide-react'
 import { useAdminShell } from '../AdminShellContext'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { STATUS_META, clockTime, itemsSummary, orderNumber, orderTableLabel } from './format'
+
+// What the customer wrote with a delivery order, shown as plain visible text
+// (never a hover tip): phone, address and the note for the kitchen.
+// Shows nothing for an order that has neither.
+export function OrderExtras({ order, className = '' }) {
+  const isDelivery = order?.type === 'delivery'
+  if (!isDelivery && !order?.note) return null
+  return (
+    <div className={`space-y-1 text-xs ${className}`}>
+      {isDelivery && (
+        <p className="flex items-start gap-1.5 text-sky-200">
+          <Truck size={13} className="mt-0.5 shrink-0" />
+          <span className="min-w-0 whitespace-pre-line break-words">
+            <bdi dir="ltr" className="font-semibold">{order.phone}</bdi>
+            {order.address ? <> · {order.address}</> : null}
+          </span>
+        </p>
+      )}
+      {order.note && (
+        <p className="flex items-start gap-1.5 text-amber-200/90">
+          <StickyNote size={13} className="mt-0.5 shrink-0" />
+          <span className="min-w-0 whitespace-pre-line break-words">{order.note}</span>
+        </p>
+      )}
+    </div>
+  )
+}
 
 // A clock that ticks every few seconds ("14:32", 24-hour like the design).
 export function useClock() {
@@ -354,6 +381,7 @@ function Bell_() {
                       #{orderNumber(order)} · {orderTableLabel(order, lang)}
                     </p>
                     <p className="truncate text-xs text-white/45">{itemsSummary(order, 2, lang)}</p>
+                    <OrderExtras order={order} className="mt-1" />
                   </div>
                   <span className="text-xs text-white/40">{clockTime(order.createdAt, lang)}</span>
                 </div>

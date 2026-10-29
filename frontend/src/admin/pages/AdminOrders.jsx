@@ -34,6 +34,7 @@ import {
   Dropdown,
   ErrorBanner,
   Modal,
+  OrderExtras,
   PageTop,
   PrimaryButton,
   GhostButton,
@@ -285,14 +286,9 @@ export default function AdminOrders() {
                       >
                         <td className="py-3.5 pe-3 font-medium text-white">#{orderNumber(order)}</td>
                         <td className="py-3.5 pe-3"><TablePill tableId={order.tableId} /></td>
-                        <td className="truncate py-3.5 pe-3 text-white/85">
-                          {order.type === 'delivery' && (
-                            <Truck size={14} className="me-1.5 inline text-sky-300" title={`${order.phone} · ${order.address}`} aria-label={t('admin.orders.deliveryDetails')} />
-                          )}
-                          {order.note && (
-                            <StickyNote size={14} className="me-1.5 inline text-amber-300" title={order.note} aria-label={t('admin.orders.clientNote')} />
-                          )}
-                          {itemsSummary(order, 2, lang)}
+                        <td className="py-3.5 pe-3 text-white/85">
+                          <p className="truncate">{itemsSummary(order, 2, lang)}</p>
+                          <OrderExtras order={order} className="mt-1.5" />
                         </td>
                         <td className="py-3.5 pe-3 text-white">{money(order.total, lang)}</td>
                         <td className="py-3.5 pe-3"><StatusBadge status={order.status} /></td>

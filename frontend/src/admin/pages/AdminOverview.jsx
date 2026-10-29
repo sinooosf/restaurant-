@@ -21,6 +21,7 @@ import {
   CardTitle,
   Dropdown,
   ErrorBanner,
+  OrderExtras,
   PageTop,
   Spinner,
   StatCard,
@@ -219,7 +220,10 @@ function Content({ data, metric, setMetric, range, setRange, vs, isToday }) {
                     <td className="py-3 pe-3 text-white/70">
                       {tableLabel(order.tableId)}
                     </td>
-                    <td className="max-w-[170px] truncate py-3 pe-3 text-white/80">{itemsSummary(order, 2, lang)}</td>
+                    <td className="max-w-[260px] py-3 pe-3 text-white/80">
+                      <p className="truncate">{itemsSummary(order, 2, lang)}</p>
+                      <OrderExtras order={order} className="mt-1" />
+                    </td>
                     <td className="py-3 pe-3">{formatMoney(order.total)}</td>
                     <td className="py-3 pe-3 text-white/70">{clockTime(order.createdAt, lang)}</td>
                     <td className="py-3"><StatusBadge status={order.status} /></td>
