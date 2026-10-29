@@ -13,7 +13,7 @@ export function OrderExtras({ order, className = '' }) {
   const isDelivery = order?.type === 'delivery'
   if (!isDelivery && !order?.note) return null
   return (
-    <div className={`space-y-1 text-xs ${className}`}>
+    <div className={`space-y-1 text-[13px] ${className}`}>
       {isDelivery && (
         <p className="flex items-start gap-1.5 text-sky-200">
           <Truck size={13} className="mt-0.5 shrink-0" />
